@@ -1,44 +1,65 @@
-from flask import Flask, request, abort
-from linebot import LineBotApi, WebhookHandler
-from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage, TextSendMessage
+from flask import Flask, request
+
+from linebot.v3 import WebhookHandler
+from linebot.v3.messaging import (
+    Configuration,
+    ApiClient,
+    MessagingApi,
+    ReplyMessageRequest,
+    TextMessage
+)
+
+from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
 app = Flask(__name__)
 
-# 👉 換成你的
-LINE_CHANNEL_ACCESS_TOKEN = "T6QIYaWvtcvzItHV2tq0UAqJCl6/wtEODCXGUalyawLysWXNlqFmnNeKUaWIRSyB2qm4fIMpAsDRi5oYgnp/jORm67zCMHgiLiC9G8Z5Uhu09nEi9nyJMHjzjZU1sJ0CkBn796KQ0oQVHpFGSOK7egdB04t89/1O/w1cDnyilFU="
-LINE_CHANNEL_SECRET = "b9b37d37acd59e2bc66b6da9ed522091"
+CHANNEL_SECRET = "你的ChannelSecret"
+CHANNEL_ACCESS_TOKEN = "你的AccessToken"
 
-line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
-handler = WebhookHandler(LINE_CHANNEL_SECRET)
+configuration = Configuration(
+    access_token=CHANNEL_ACCESS_TOKEN
+)
+
+handler = WebhookHandler(CHANNEL_SECRET)
+
+
+@app.route("/")
+def home():
+    return "Bot Running"
+
 
 @app.route("/callback", methods=["POST"])
 def callback():
+
     signature = request.headers["X-Line-Signature"]
     body = request.get_data(as_text=True)
 
-    try:
-        handler.handle(body, signature)
-    except InvalidSignatureError:
-        abort(400)
+    handler.handle(body, signature)
 
     return "OK"
 
 
-@handler.add(MessageEvent, message=TextMessage)
+@handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
-    user_text = event.message.text.lower()
 
-    if user_text == "hi":
-        reply = "hello"
+    user_text = event.message.text
+
+    if user_text.lower() == "hi":
+        reply_text = "hello"
     else:
-        reply = "很抱歉沒有相關資料"
+        reply_text = "沒有資料"
 
-    line_bot_api.reply_message(
-        event.reply_token,
-        TextSendMessage(text=reply)
-    )
+    with ApiClient(configuration) as api_client:
+
+        MessagingApi(api_client).reply_message(
+            ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[
+                    TextMessage(text=reply_text)
+                ]
+            )
+        )
 
 
 if __name__ == "__main__":
-    app.run(port=5000)
+    app.run()
