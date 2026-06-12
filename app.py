@@ -13,8 +13,8 @@ from linebot.v3.webhooks import MessageEvent, TextMessageContent
 
 app = Flask(__name__)
 
-CHANNEL_SECRET = "你的ChannelSecret"
-CHANNEL_ACCESS_TOKEN = "你的AccessToken"
+CHANNEL_SECRET = "b9b37d37acd59e2bc66b6da9ed522091"
+CHANNEL_ACCESS_TOKEN = "T6QIYaWvtcvzItHV2tq0UAqJCl6/wtEODCXGUalyawLysWXNlqFmnNeKUaWIRSyB2qm4fIMpAsDRi5oYgnp/jORm67zCMHgiLiC9G8Z5Uhu09nEi9nyJMHjzjZU1sJ0CkBn796KQ0oQVHpFGSOK7egdB04t89/1O/w1cDnyilFU="
 
 configuration = Configuration(
     access_token=CHANNEL_ACCESS_TOKEN
