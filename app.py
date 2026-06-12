@@ -42,15 +42,16 @@ def callback():
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
 
-    user_text = event.message.text
+    stores = {
+        "1": "海安店\n營業額：10000\n客人數：100",
+        "2": "仁和店\n營業額：10000\n客人數：100",
+    }
 
-    if user_text.lower() == "hi":
-        reply_text = "hello"
-    else:
-        reply_text = "沒有資料"
+    user_text = event.message.text.strip()
+
+    reply_text = stores.get(user_text, "沒有資料")
 
     with ApiClient(configuration) as api_client:
-
         MessagingApi(api_client).reply_message(
             ReplyMessageRequest(
                 reply_token=event.reply_token,
