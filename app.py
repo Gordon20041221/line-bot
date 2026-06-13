@@ -80,7 +80,7 @@ def handle_message(event):
                 f"⭐{int(row['評論星級'])}星\n"
                 f"🕒{row['評論時間']}\n"
                 f"{review}\n"
-                f"(未回覆))"
+                f"(未回覆)"
                 )
 
             reply_text = "\n\n────────\n\n".join(lines[:10])
