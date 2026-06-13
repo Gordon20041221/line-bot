@@ -54,17 +54,36 @@ def handle_message(event):
 
         df["評論星級"] = pd.to_numeric(df["評論星級"], errors="coerce")
 
-        filtered = df[df["評論星級"] < 3]
+        filtered = df[
+            (df["評論星級"] < 3) &
+            (
+                df["商家是否回復"].isna() |
+                (df["商家是否回復"].astype(str).str.strip() == "")
+            )
+            ]
+        
 
         if filtered.empty:
-            reply_text = "沒有低於3星的評論"
+            reply_text = "沒有未回覆的低星評論"
         else:
             lines = []
+
             for _, row in filtered.iterrows():
+
+                review = str(row["評論內容"])
+
+                # 避免評論太長導致 LINE 超過訊息限制
+                if len(review) > 80:
+                    review = review[:80] + "..."
+
                 lines.append(
-                    f"{row['評論者名稱']}｜{row['評論時間']}｜{row['評論星級']}星\n{row['評論內容']}"
+                f"👤{row['評論者名稱']}\n"
+                f"⭐{int(row['評論星級'])}星\n"
+                f"🕒{row['評論時間']}\n"
+                f"{review}"
                 )
-            reply_text = "\n\n---\n\n".join(lines)
+
+            reply_text = "\n\n────────\n\n".join(lines[:10])
 
     elif cmd == "讚":
 
