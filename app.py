@@ -48,7 +48,9 @@ def handle_message(event):
     }
 
     # ====== 新增：CSV 篩選功能 ======
-    if user_text == "!":
+    cmd = user_text.strip().lower().replace("！", "!")
+
+    if cmd == "!":
 
         df = pd.read_csv("Google評論列表頁.csv")  # 你的CSV檔名
 
