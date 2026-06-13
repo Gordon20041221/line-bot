@@ -41,20 +41,17 @@ def handle_message(event):
 
     user_text = event.message.text.strip()
 
-    # ====== 原本功能 ======
     stores = {
         "1": "海安店\n營業額：10000\n客人數：100",
         "2": "仁和店\n營業額：10000\n客人數：100",
     }
 
-    # ====== 新增：CSV 篩選功能 ======
     cmd = user_text.strip().lower().replace("！", "!")
 
     if cmd == "!":
 
-        df = pd.read_csv("Google評論列表頁.csv")  # 你的CSV檔名
+        df = pd.read_csv("Google評論列表頁.csv")
 
-        # 星級轉數字（避免字串問題）
         df["評論星級"] = pd.to_numeric(df["評論星級"], errors="coerce")
 
         filtered = df[df["評論星級"] < 3]
@@ -69,10 +66,30 @@ def handle_message(event):
                 )
             reply_text = "\n\n---\n\n".join(lines)
 
-    else:
-        reply_text = stores.get(user_text, "輸入1或2查看店鋪資訊，輸入!查看低於3星的評論")
+    elif cmd == "讚":
 
-    # ====== 回覆 LINE ======
+        df = pd.read_csv("Google評論列表頁.csv")
+
+        df["評論星級"] = pd.to_numeric(df["評論星級"], errors="coerce")
+
+        filtered = df[df["評論星級"] == 5]
+
+        if filtered.empty:
+            reply_text = "沒有5星評論"
+        else:
+            lines = []
+            for _, row in filtered.iterrows():
+                lines.append(
+                    f"{row['評論者名稱']}｜{row['評論時間']}｜{row['評論星級']}星\n{row['評論內容']}"
+                )
+            reply_text = "\n\n---\n\n".join(lines)
+
+    else:
+        reply_text = stores.get(
+            user_text,
+            "輸入1或2查看店鋪資訊，輸入!查看低於3星評論，輸入讚查看5星評論"
+        )
+
     with ApiClient(configuration) as api_client:
         MessagingApi(api_client).reply_message(
             ReplyMessageRequest(
