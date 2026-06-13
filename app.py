@@ -117,7 +117,7 @@ def handle_message(event):
     else:
         reply_text = stores.get(
             user_text,
-            "輸入1或2查看店鋪資訊，輸入!查看低於3星評論且商家未回覆，輸入讚查看5星評論"
+            "輸入(1)：查看海安店資訊\n輸入(2)：查看仁和店資訊\n輸入(!)：查看低於3星且商家未回覆的評論\n輸入(讚)：查看5星評論"
         )
 
     with ApiClient(configuration) as api_client:
