@@ -55,7 +55,7 @@ def handle_message(event):
         df["評論星級"] = pd.to_numeric(df["評論星級"], errors="coerce")
 
         filtered = df[
-            (df["評論星級"] < 3) &
+            (df["評論星級"] <= 3) &
             (
                 df["商家是否回復"].isna() |
                 (df["商家是否回復"].astype(str).str.strip() == "")
@@ -72,16 +72,14 @@ def handle_message(event):
 
                 review = str(row["評論內容"])
 
-                # 避免評論太長導致 LINE 超過訊息限制
-                if len(review) > 80:
-                    review = review[:80] + "..."
+                if review == "nan":
+                review = "（無文字評論）"
 
                 lines.append(
                 f"👤{row['評論者名稱']}\n"
                 f"⭐{int(row['評論星級'])}星\n"
                 f"🕒{row['評論時間']}\n"
-                f"{review}\n"
-                f"(未回覆)"
+                f"{review}"
                 )
 
             reply_text = "\n\n────────\n\n".join(lines[:10])
