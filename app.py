@@ -50,7 +50,7 @@ def handle_message(event):
     # ====== 新增：CSV 篩選功能 ======
     if user_text == "!":
 
-        df = pd.read_csv("reviews.csv")  # 你的CSV檔名
+        df = pd.read_csv("Google評論列表頁.csv")  # 你的CSV檔名
 
         # 星級轉數字（避免字串問題）
         df["評論星級"] = pd.to_numeric(df["評論星級"], errors="coerce")
