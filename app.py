@@ -80,7 +80,8 @@ def handle_message(event):
                 f"👤{row['評論者名稱']}\n"
                 f"⭐{int(row['評論星級'])}星\n"
                 f"🕒{row['評論時間']}\n"
-                f"{review}"
+                f"{review}\n"
+                f"(未回覆)"
                 )
 
             reply_text = "\n\n────────\n\n".join(lines[:10])
@@ -99,14 +100,17 @@ def handle_message(event):
             lines = []
             for _, row in filtered.iterrows():
                 lines.append(
-                    f"{row['評論者名稱']}｜{row['評論時間']}｜{row['評論星級']}星\n{row['評論內容']}"
+                f"👤{row['評論者名稱']}\n"
+                f"⭐{int(row['評論星級'])}星\n"
+                f"🕒{row['評論時間']}\n"
+                f"{review}"
                 )
             reply_text = "\n\n---\n\n".join(lines)
 
     else:
         reply_text = stores.get(
             user_text,
-            "輸入1或2查看店鋪資訊，輸入!查看低於3星評論，輸入讚查看5星評論"
+            "輸入1或2查看店鋪資訊，輸入!查看低於3星評論且商家未回覆，輸入讚查看5星評論"
         )
 
     with ApiClient(configuration) as api_client:
