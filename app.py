@@ -73,13 +73,14 @@ def handle_message(event):
                 review = str(row["評論內容"])
 
                 if review == "nan":
-                review = "（無文字評論）"
+                    review = "（無文字評論）"
 
                 lines.append(
                 f"👤{row['評論者名稱']}\n"
                 f"⭐{int(row['評論星級'])}星\n"
                 f"🕒{row['評論時間']}\n"
-                f"{review}"
+                f"{review}\n"
+                f"(未回覆))"
                 )
 
             reply_text = "\n\n────────\n\n".join(lines[:10])
@@ -96,14 +97,22 @@ def handle_message(event):
             reply_text = "沒有5星評論"
         else:
             lines = []
+
             for _, row in filtered.iterrows():
+
+                review = str(row["評論內容"])
+
+                if review == "nan":
+                    review = "（無文字評論）"
+
                 lines.append(
                 f"👤{row['評論者名稱']}\n"
                 f"⭐{int(row['評論星級'])}星\n"
                 f"🕒{row['評論時間']}\n"
                 f"{review}"
                 )
-            reply_text = "\n\n---\n\n".join(lines)
+
+            reply_text = "\n\n────────\n\n".join(lines[:10])
 
     else:
         reply_text = stores.get(
