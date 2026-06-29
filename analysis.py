@@ -109,6 +109,7 @@ def compare_q1_month(month, category=None):
     if category:
         m = m[m["類別"] == category]
 
+    # ⚠️ 強制補 Q1 / Qm 對齊
     df = pd.merge(
         q1,
         m,
@@ -117,17 +118,6 @@ def compare_q1_month(month, category=None):
         suffixes=("_Q1", f"_{month}")
     ).fillna(0)
 
-    df["數量差異"] = df[f"銷售數量_{month}"] - df["銷售數量_Q1"]
-    df["金額差異"] = df[f"實銷金額_{month}"] - df["實銷金額_Q1"]
-
-    df["數量成長率"] = (
-        df["數量差異"] /
-        df["銷售數量_Q1"].replace(0, pd.NA) * 100
-    ).fillna(0).round(2)
-
-    df["金額成長率"] = (
-        df["金額差異"] /
-        df["實銷金額_Q1"].replace(0, pd.NA) * 100
-    ).fillna(0).round(2)
+    df["月份"] = month   # ⭐關鍵：標記月份
 
     return df
