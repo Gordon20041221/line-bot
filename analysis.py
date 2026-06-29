@@ -5,9 +5,9 @@ import pandas as pd
 # ==========================
 def read_month(month):
 
-    filename = f"{month}.xls"
+    filename = f"{month}.csv"
 
-    df = pd.read_excel(filename, dtype=str)
+    df = pd.read_csv(filename, dtype=str)
     df.columns = df.columns.str.strip()
 
     df = df[
