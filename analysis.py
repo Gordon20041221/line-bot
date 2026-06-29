@@ -1,7 +1,7 @@
 import pandas as pd
 
 # ==========================
-# 讀月資料（你原本的保留）
+# 讀月資料
 # ==========================
 def read_month(month):
     df = pd.read_csv(f"{month}.csv")
@@ -13,7 +13,7 @@ def read_month(month):
 
 
 # ==========================
-# 單月 summary
+# group by
 # ==========================
 def summary(df):
     return df.groupby(
@@ -23,37 +23,56 @@ def summary(df):
 
 
 # ==========================
-# Q1（1-3月平均）
+# Q1 平均
 # ==========================
-def build_q1():
-    df = pd.concat([read_month(1), read_month(2), read_month(3)])
+def build_q1(category=None):
+
+    df = pd.concat([
+        read_month(1),
+        read_month(2),
+        read_month(3)
+    ], ignore_index=True)
+
+    if category:
+        df = df[df["類別"] == category]
+
     df = summary(df)
 
-    df["銷售數量"] = df["銷售數量"] / 3
-    df["實銷金額"] = df["實銷金額"] / 3
+    df["銷售數量"] /= 3
+    df["實銷金額"] /= 3
 
     return df
 
 
 # ==========================
-# Q2（4-6月平均）
+# Q2 平均
 # ==========================
-def build_q2():
-    df = pd.concat([read_month(4), read_month(5), read_month(6)])
+def build_q2(category=None):
+
+    df = pd.concat([
+        read_month(4),
+        read_month(5),
+        read_month(6)
+    ], ignore_index=True)
+
+    if category:
+        df = df[df["類別"] == category]
+
     df = summary(df)
 
-    df["銷售數量"] = df["銷售數量"] / 3
-    df["實銷金額"] = df["實銷金額"] / 3
+    df["銷售數量"] /= 3
+    df["實銷金額"] /= 3
 
     return df
 
 
 # ==========================
-# Q1 vs Q2（平均比較）
+# B mode：Q1 vs Q2（平均）
 # ==========================
-def compare_q1_q2():
-    q1 = build_q1()
-    q2 = build_q2()
+def compare_q1_q2(category=None):
+
+    q1 = build_q1(category)
+    q2 = build_q2(category)
 
     df = pd.merge(
         q1,
@@ -80,12 +99,15 @@ def compare_q1_q2():
 
 
 # ==========================
-# Q1 vs 單月（A用）
+# A mode：Q1 vs 單月（逐月）
 # ==========================
 def compare_q1_month(month, category=None):
 
-    q1 = build_q1()
+    q1 = build_q1(category)
     m = summary(read_month(month))
+
+    if category:
+        m = m[m["類別"] == category]
 
     df = pd.merge(
         q1,
