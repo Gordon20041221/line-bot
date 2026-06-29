@@ -81,41 +81,39 @@ def handle_message(event):
 
     raw = event.message.text.strip()
 
-    # ==========================
-    # ⚠️ FIX：先正規化 cmd（不要覆蓋）
-    # ==========================
     cmd = raw.lower()
     cmd = cmd.replace("！", "!").replace("１", "1").replace("２", "2")
 
     user_id = event.source.user_id
-
     state = user_state.get(user_id)
 
     reply_text = ""
 
     # ==========================
-    # STEP 1：選分析
+    # A / B 選擇
     # ==========================
-    if cmd == "1":
+    if cmd == "a":
         user_state[user_id] = "q1_q46_category"
         reply_text = "請輸入類別代號（1~27）"
 
-    elif cmd == "2":
+    elif cmd == "b":
         user_state[user_id] = "q1_q2_category"
         reply_text = "請輸入類別代號（1~27）"
 
     # ==========================
-    # STEP 2：等待類別輸入
+    # 類別輸入
     # ==========================
     elif state in ["q1_q46_category", "q1_q2_category"]:
 
         if cmd not in category_map:
             reply_text = "類別錯誤，請輸入 1~27"
+
         else:
+
             category = category_map[cmd]
 
             # ==========================
-            # Q1 vs 4~6
+            # A：Q1 vs 4~6月
             # ==========================
             if state == "q1_q46_category":
 
@@ -128,66 +126,98 @@ def handle_message(event):
 
                 result = pd.concat(all_months)
 
-                summary = result.groupby("商品名稱", as_index=False)["數量成長率"].mean()
+                summary = result.groupby(
+                    "商品名稱",
+                    as_index=False
+                )["數量成長率"].mean()
 
-                top = summary.sort_values("數量成長率", ascending=False).head(5)
-                down = summary.sort_values("數量成長率").head(5)
+                lines = []
+                lines.append(f"📊 {category} Q1 vs 4~6月分析報告\n")
 
-                lines = [f"📊 {category} Q1 vs 4~6月", "🔥 成長TOP5"]
+                # ==========================
+                # 🔥 全商品輸出（無 TOP）
+                # ==========================
+                for _, r in summary.iterrows():
 
-                for _, r in top.iterrows():
-                    lines.append(f"{r['商品名稱']} ↑ {r['數量成長率']:.2f}%")
+                    product = r["商品名稱"]
+                    growth = r["數量成長率"]
 
-                lines.append("\n📉 下滑TOP5")
+                    if growth > 0:
+                        lines.append(
+                            f"🍹 {product} 在6月表現成長，"
+                            f"相較第一季平均呈現上升趨勢，"
+                            f"成長約 +{growth:.2f}%"
+                        )
+                    elif growth < 0:
+                        lines.append(
+                            f"📉 {product} 在6月表現下滑，"
+                            f"相較第一季平均呈現衰退趨勢，"
+                            f"下降約 {growth:.2f}%"
+                        )
+                    else:
+                        lines.append(
+                            f"📦 {product} 表現持平，與第一季平均差異不大"
+                        )
 
-                for _, r in down.iterrows():
-                    lines.append(f"{r['商品名稱']} ↓ {r['數量成長率']:.2f}%")
-
-                reply_text = "\n".join(lines)
+                reply_text = "\n\n".join(lines)
 
             # ==========================
-            # Q1 vs Q2
+            # B：Q1 vs Q2
             # ==========================
             else:
 
                 result = compare_q1_q2()
 
-                result["數量成長率"] = pd.to_numeric(result["數量成長率"], errors="coerce").fillna(0)
+                result["數量成長率"] = pd.to_numeric(
+                    result["數量成長率"],
+                    errors="coerce"
+                ).fillna(0)
 
-                result = result[result["類別"] == category] if "類別" in result.columns else result
+                result = result[result["類別"] == category]
 
-                top = result.sort_values("數量成長率", ascending=False).head(5)
-                down = result.sort_values("數量成長率").head(5)
+                lines = []
+                lines.append(f"📊 {category} Q1 vs Q2分析報告\n")
 
-                lines = [f"📊 {category} Q1 vs Q2", "🔥 成長TOP5"]
+                for _, r in result.iterrows():
 
-                for _, r in top.iterrows():
-                    lines.append(f"{r['商品名稱']} ↑ {r['數量成長率']:.2f}%")
+                    product = r["商品名稱"]
+                    growth = r["數量成長率"]
 
-                lines.append("\n📉 下滑TOP5")
+                    if growth > 0:
+                        lines.append(
+                            f"🍹 {product} Q2表現成長，"
+                            f"相較Q1呈現上升趨勢，"
+                            f"成長約 +{growth:.2f}%"
+                        )
+                    elif growth < 0:
+                        lines.append(
+                            f"📉 {product} Q2表現下滑，"
+                            f"相較Q1呈現衰退趨勢，"
+                            f"下降約 {growth:.2f}%"
+                        )
+                    else:
+                        lines.append(
+                            f"📦 {product} Q2與Q1表現持平"
+                        )
 
-                for _, r in down.iterrows():
-                    lines.append(f"{r['商品名稱']} ↓ {r['數量成長率']:.2f}%")
+                reply_text = "\n\n".join(lines)
 
-                reply_text = "\n".join(lines)
-
-            # 用完 state 就清掉
             user_state.pop(user_id, None)
 
     # ==========================
-    # ! 功能（保留）
+    # 保留 !
     # ==========================
     elif cmd == "!":
-        reply_text = "（你的低星評論功能保留原本）"
+        reply_text = "（低星評論功能保留）"
 
     # ==========================
-    # 讚功能（保留）
+    # 保留 讚
     # ==========================
     elif cmd == "讚":
-        reply_text = "（你的五星評論功能保留原本）"
+        reply_text = "（五星評論功能保留）"
 
     else:
-        reply_text = "請輸入：1 / 2 / ! / 讚"
+        reply_text = "請輸入：a / b / ! / 讚"
 
     # ==========================
     # reply
