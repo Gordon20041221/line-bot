@@ -38,6 +38,41 @@ def callback():
     handler.handle(body, signature)
     return "OK"
 
+@handler.add(MessageEvent, message=TextMessageContent)
+def handle_message(event):
+
+    try:
+        cmd = event.message.text.strip().lower().replace("！", "!")
+        cmd = cmd.replace("１", "1").replace("２", "2")
+
+        print("DEBUG cmd =", repr(cmd))
+
+        if cmd == "1":
+            reply_text = "debug 1 ok"
+
+        elif cmd == "2":
+            reply_text = "debug 2 ok"
+
+        elif cmd == "!":
+            reply_text = "debug ! ok"
+
+        elif cmd == "讚":
+            reply_text = "debug 讚 ok"
+
+        else:
+            reply_text = "menu ok"
+
+    except Exception as e:
+        print("ERROR:", e)
+        reply_text = f"error: {e}"
+
+    with ApiClient(configuration) as api_client:
+        MessagingApi(api_client).reply_message(
+            ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=reply_text)]
+            )
+        )
 
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):

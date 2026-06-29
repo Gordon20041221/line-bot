@@ -1,3 +1,5 @@
+from fileinput import filename
+
 import pandas as pd
 
 # ==========================
@@ -6,8 +8,10 @@ import pandas as pd
 def read_month(month):
 
     filename = f"{month}.csv"
-
+    print("READ FILE:", filename)
     df = pd.read_csv(filename, dtype=str)
+    print(df.head())
+    print(df.columns)
     df.columns = df.columns.str.strip()
 
     df = df[
