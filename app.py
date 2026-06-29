@@ -25,9 +25,11 @@ configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(CHANNEL_SECRET)
 
 # ==========================
-# 使用者狀態
+# STATE
 # ==========================
 user_state = {}
+
+SELECT_CATEGORY = "select_category"
 
 # ==========================
 # 類別
@@ -83,40 +85,49 @@ def handle_message(event):
     user_id = event.source.user_id
     cmd = event.message.text.strip()
 
+    state = user_state.get(user_id)
     reply_text = ""
 
-    # ==========================
-    # 1️⃣ Q1 vs 4~6月（進入選類別）
-    # ==========================
-    if cmd == "1":
-        user_state[user_id] = {"mode": "M46"}
+    # =====================================================
+    # ❗ 0. 不影響 state 的指令
+    # =====================================================
+    if cmd == "!":
+        reply_text = "（未回覆評論功能略）"
+    
+    elif cmd == "讚":
+        reply_text = "（五星評論功能略）"
+
+    # =====================================================
+    # 1️⃣ 選功能
+    # =====================================================
+    elif cmd == "1":
+        user_state[user_id] = {"mode": "M46", "step": SELECT_CATEGORY}
+
         reply_text = "請輸入類別代號：\n\n" + "\n".join(
             [f"{k}. {v}" for k, v in category_map.items()]
         )
 
-    # ==========================
-    # 2️⃣ Q1 vs Q2（進入選類別）
-    # ==========================
     elif cmd == "2":
-        user_state[user_id] = {"mode": "Q1Q2"}
+        user_state[user_id] = {"mode": "Q1Q2", "step": SELECT_CATEGORY}
+
         reply_text = "請輸入類別代號：\n\n" + "\n".join(
             [f"{k}. {v}" for k, v in category_map.items()]
         )
 
-    # ==========================
-    # 📊 類別分析
-    # ==========================
-    elif user_id in user_state and cmd in category_map:
+    # =====================================================
+    # 2️⃣ 選類別（真正計算）
+    # =====================================================
+    elif state and state.get("step") == SELECT_CATEGORY and cmd in category_map:
 
-        state = user_state[user_id]
         category = category_map[cmd]
+        mode = state["mode"]
 
-        if state["mode"] == "M46":
+        if mode == "M46":
             months = [4, 5, 6]
             title = "Q1 vs 4~6月"
 
-        elif state["mode"] == "Q1Q2":
-            months = [2, 3, 4]  # Q2 (你也可改成真正 Q2)
+        else:
+            months = [2, 3, 4]
             title = "Q1 vs Q2"
 
         all_df = []
@@ -131,7 +142,7 @@ def handle_message(event):
         summary = result.groupby("商品名稱", as_index=False)["數量成長率"].mean()
 
         top_up = summary.sort_values("數量成長率", ascending=False).head(5)
-        top_down = summary.sort_values("數量成長率", ascending=True).head(5)
+        top_down = summary.sort_values("數量成長率").head(5)
 
         lines = [f"📊 {category} {title}\n"]
 
@@ -145,89 +156,23 @@ def handle_message(event):
 
         reply_text = "\n".join(lines)
 
+        # ⭐ 關鍵：完成後清 state
         user_state.pop(user_id, None)
 
-    # ==========================
-    # ❗ 未回覆低星評論（保留）
-    # ==========================
-    elif cmd == "!":
-
-        df = pd.read_csv("Google評論列表頁.csv")
-        df["評論星級"] = pd.to_numeric(df["評論星級"], errors="coerce")
-
-        filtered = df[
-            (df["評論星級"] <= 3) &
-            (
-                df["商家是否回復"].isna() |
-                (df["商家是否回復"].astype(str).str.strip() == "")
-            )
-        ]
-
-        if filtered.empty:
-            reply_text = "沒有未回覆的低星評論"
-
-        else:
-            lines = []
-            for _, row in filtered.iterrows():
-
-                review = str(row["評論內容"])
-                if review == "nan":
-                    review = "（無文字評論）"
-
-                lines.append(
-                    f"👤{row['評論者名稱']}\n"
-                    f"⭐{int(row['評論星級'])}星\n"
-                    f"🕒{row['評論時間']}\n"
-                    f"{review}\n"
-                    "(未回覆)"
-                )
-
-            reply_text = "\n\n────────\n\n".join(lines[:10])
-
-    # ==========================
-    # 👍 五星評論（保留）
-    # ==========================
-    elif cmd == "讚":
-
-        df = pd.read_csv("Google評論列表頁.csv")
-        df["評論星級"] = pd.to_numeric(df["評論星級"], errors="coerce")
-
-        filtered = df[df["評論星級"] == 5]
-
-        if filtered.empty:
-            reply_text = "沒有5星評論"
-
-        else:
-            lines = []
-            for _, row in filtered.iterrows():
-
-                review = str(row["評論內容"])
-                if review == "nan":
-                    review = "（無文字評論）"
-
-                lines.append(
-                    f"👤{row['評論者名稱']}\n"
-                    f"⭐{int(row['評論星級'])}星\n"
-                    f"🕒{row['評論時間']}\n"
-                    f"{review}"
-                )
-
-            reply_text = "\n\n────────\n\n".join(lines[:10])
-
-    # ==========================
+    # =====================================================
     # fallback
-    # ==========================
+    # =====================================================
     else:
         reply_text = (
             "請輸入：\n"
-            "1 = Q1 vs 4~6月（依類別）\n"
-            "2 = Q1 vs Q2（依類別）\n"
+            "1 = Q1 vs 4~6月\n"
+            "2 = Q1 vs Q2\n"
             "! = 未回覆評論\n"
             "讚 = 五星評論"
         )
 
     # ==========================
-    # reply
+    # reply LINE
     # ==========================
     with ApiClient(configuration) as api_client:
         MessagingApi(api_client).reply_message(
