@@ -1,202 +1,190 @@
 import pandas as pd
-import re
-
 # ==========================
-# 🔥 核心：穩定報表清洗器
+# 讀取月份資料
 # ==========================
-def clean_csv_to_df(filename):
+def read_month(month):
 
-    data = []
+    filename = f"{month}.csv"
 
-    with open(filename, "r", encoding="cp950", errors="ignore") as f:
+    df = pd.read_csv(
+        filename,
+        encoding="utf-8-sig"
+    )
 
-        for line in f:
+    df["類別"] = df["類別"].astype(str)
+    df["商品編號"] = df["商品編號"].astype(str)
+    df["商品名稱"] = df["商品名稱"].astype(str)
 
-            line = line.strip()
-            if not line:
-                continue
+    df["銷售數量"] = pd.to_numeric(
+        df["銷售數量"],
+        errors="coerce"
+    ).fillna(0)
 
-            # ==========================
-            # ❌ 排除無效列
-            # ==========================
-            if any(x in line for x in ["小計", "類別", "合計", "名次："]):
-                continue
-
-            # 必須有商品編號（避免抓到 header）
-            if "商品編號" not in line:
-                continue
-
-            # ==========================
-            # 拆欄（tab + 多空白）
-            # ==========================
-            cols = re.split(r"\t+|\s{2,}", line)
-
-            if len(cols) < 6:
-                continue
-
-            try:
-                product_id = cols[1].strip()
-                product_name = cols[2].strip()
-
-                # ==========================
-                # 抓所有數字欄（避免欄位錯位）
-                # ==========================
-                numbers = []
-
-                for c in cols:
-                    c = c.replace(",", "").strip()
-                    if re.match(r"^-?\d+(\.\d+)?$", c):
-                        numbers.append(float(c))
-
-                if len(numbers) < 2:
-                    continue
-
-                qty = numbers[-2]       # 銷售數量
-                amount = numbers[-1]    # 實銷金額
-
-                data.append([
-                    product_id,
-                    product_name,
-                    qty,
-                    amount
-                ])
-
-            except:
-                continue
-
-    df = pd.DataFrame(data, columns=[
-        "商品編號",
-        "商品名稱",
-        "銷售數量",
-        "實銷金額"
-    ])
-
-    # ==========================
-    # 🔥 最後清洗
-    # ==========================
-    df["商品編號"] = df["商品編號"].astype(str).str.strip()
-    df["商品名稱"] = df["商品名稱"].astype(str).str.strip()
-
-    df["銷售數量"] = pd.to_numeric(df["銷售數量"], errors="coerce").fillna(0)
-    df["實銷金額"] = pd.to_numeric(df["實銷金額"], errors="coerce").fillna(0)
-
-    # 去掉空資料
-    df = df[df["商品編號"].str.len() > 0]
+    df["實銷金額"] = pd.to_numeric(
+        df["實銷金額"],
+        errors="coerce"
+    ).fillna(0)
 
     return df
 
 
 # ==========================
-# 📦 加總
+# 商品加總
 # ==========================
 def summary(df):
 
     return df.groupby(
-        ["商品編號", "商品名稱"],
+        ["類別", "商品編號", "商品名稱"],
         as_index=False
     )[["銷售數量", "實銷金額"]].sum()
 
 
 # ==========================
-# 📊 讀月份
-# ==========================
-def read_month(month):
-
-    filename = f"{month}.csv"
-    print("READ FILE:", filename)
-
-    df = clean_csv_to_df(filename)
-
-    print("shape:", df.shape)
-    print(df.head())
-
-    return df
-
-
-# ==========================
-# 📦 Q1
+# 建立 Q1
 # ==========================
 def build_q1():
-    return summary(pd.concat([
-        read_month(1),
-        read_month(2),
-        read_month(3)
-    ], ignore_index=True))
+
+    return summary(
+        pd.concat([
+            read_month(1),
+            read_month(2),
+            read_month(3)
+        ], ignore_index=True)
+    )
 
 
 # ==========================
-# 📦 Q2
+# 建立 Q2
 # ==========================
 def build_q2():
-    return summary(pd.concat([
-        read_month(4),
-        read_month(5),
-        read_month(6)
-    ], ignore_index=True))
+
+    return summary(
+        pd.concat([
+            read_month(4),
+            read_month(5),
+            read_month(6)
+        ], ignore_index=True)
+    )
 
 
 # ==========================
-# 📊 Q1 vs Q2
+# Q1 vs Q2
 # ==========================
-def compare_q1_q2():
+def compare_q1_q2(category=None):
 
     q1 = build_q1()
     q2 = build_q2()
 
-    print("Q1 shape:", q1.shape)
-    print("Q2 shape:", q2.shape)
+    if category:
+        q1 = q1[q1["類別"] == category]
+        q2 = q2[q2["類別"] == category]
 
     result = pd.merge(
         q1,
         q2,
-        on=["商品編號", "商品名稱"],
+        on=["類別", "商品編號", "商品名稱"],
         how="outer",
         suffixes=("_Q1", "_Q2")
     ).fillna(0)
 
-    result["數量差異"] = result["銷售數量_Q2"] - result["銷售數量_Q1"]
-    result["金額差異"] = result["實銷金額_Q2"] - result["實銷金額_Q1"]
+    result["數量差異"] = (
+        result["銷售數量_Q2"]
+        - result["銷售數量_Q1"]
+    )
+
+    result["金額差異"] = (
+        result["實銷金額_Q2"]
+        - result["實銷金額_Q1"]
+    )
 
     result["數量成長率"] = (
-        result["數量差異"] /
-        result["銷售數量_Q1"].replace(0, pd.NA) * 100
+        result["數量差異"]
+        /
+        result["銷售數量_Q1"].replace(0, pd.NA)
+        * 100
     ).fillna(0).round(2)
 
     result["金額成長率"] = (
-        result["金額差異"] /
-        result["實銷金額_Q1"].replace(0, pd.NA) * 100
+        result["金額差異"]
+        /
+        result["實銷金額_Q1"].replace(0, pd.NA)
+        * 100
     ).fillna(0).round(2)
 
     return result
 
 
 # ==========================
-# 📊 Q1 vs 單月
+# Q1 vs 單月
 # ==========================
-def compare_q1_month(month):
+def compare_q1_month(month, category=None):
 
     q1 = build_q1()
-    m = summary(read_month(month))
+
+    m = summary(
+        read_month(month)
+    )
+
+    if category:
+        q1 = q1[q1["類別"] == category]
+        m = m[m["類別"] == category]
 
     result = pd.merge(
         q1,
         m,
-        on=["商品編號", "商品名稱"],
+        on=["類別", "商品編號", "商品名稱"],
         how="outer",
         suffixes=("_Q1", f"_{month}")
     ).fillna(0)
 
-    result["數量差異"] = result[f"銷售數量_{month}"] - result["銷售數量_Q1"]
-    result["金額差異"] = result[f"實銷金額_{month}"] - result["實銷金額_Q1"]
+    result["數量差異"] = (
+        result[f"銷售數量_{month}"]
+        - result["銷售數量_Q1"]
+    )
+
+    result["金額差異"] = (
+        result[f"實銷金額_{month}"]
+        - result["實銷金額_Q1"]
+    )
 
     result["數量成長率"] = (
-        result["數量差異"] /
-        result["銷售數量_Q1"].replace(0, pd.NA) * 100
+        result["數量差異"]
+        /
+        result["銷售數量_Q1"].replace(0, pd.NA)
+        * 100
     ).fillna(0).round(2)
 
     result["金額成長率"] = (
-        result["金額差異"] /
-        result["實銷金額_Q1"].replace(0, pd.NA) * 100
+        result["金額差異"]
+        /
+        result["實銷金額_Q1"].replace(0, pd.NA)
+        * 100
     ).fillna(0).round(2)
 
     return result
+
+
+# ==========================
+# 測試
+# ==========================
+if __name__ == "__main__":
+
+    result = compare_q1_month(
+        4,
+        "茶飲"
+    )
+
+    print(
+        result[
+            [
+                "商品名稱",
+                "數量成長率",
+                "金額成長率"
+            ]
+        ]
+        .sort_values(
+            "數量成長率",
+            ascending=False
+        )
+        .head(10)
+    )
