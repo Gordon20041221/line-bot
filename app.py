@@ -32,27 +32,89 @@ def home():
 
 @app.route("/callback", methods=["POST"])
 def callback():
-    signature = request.headers["X-Line-Signature"]
+    signature = request.headers.get("X-Line-Signature", "")
     body = request.get_data(as_text=True)
 
-    handler.handle(body, signature)
+    print("WEBHOOK RECEIVED")
+    print(body)
+
+    try:
+        handler.handle(body, signature)
+    except Exception as e:
+        print("WEBHOOK ERROR:", e)
+
     return "OK"
 
+
+# ==========================
+# ONLY ONE handler (重點！！)
+# ==========================
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
 
     try:
-        cmd = event.message.text.strip().lower().replace("！", "!")
-        cmd = cmd.replace("１", "1").replace("２", "2")
+        cmd = event.message.text.strip().lower()
+        cmd = cmd.replace("！", "!").replace("１", "1").replace("２", "2")
 
-        print("DEBUG cmd =", repr(cmd))
+        print("CMD =", cmd)
 
+        # ======================
+        # 1
+        # ======================
         if cmd == "1":
-            reply_text = "debug 1 ok"
 
+            all_months = []
+            for month in [4, 5, 6]:
+                df = compare_q1_month(month)
+                df["數量成長率"] = pd.to_numeric(df["數量成長率"], errors="coerce").fillna(0)
+                df["月份"] = month
+                all_months.append(df)
+
+            result = pd.concat(all_months)
+
+            summary = result.groupby("商品名稱", as_index=False)["數量成長率"].mean()
+
+            top_up = summary.sort_values("數量成長率", ascending=False).head(5)
+            top_down = summary.sort_values("數量成長率").head(5)
+
+            lines = ["📊 Q1 vs 4~6月"]
+
+            for _, r in top_up.iterrows():
+                lines.append(f"{r['商品名稱']} ↑ {r['數量成長率']:.2f}%")
+
+            lines.append("----")
+
+            for _, r in top_down.iterrows():
+                lines.append(f"{r['商品名稱']} ↓ {r['數量成長率']:.2f}%")
+
+            reply_text = "\n".join(lines)
+
+        # ======================
+        # 2
+        # ======================
         elif cmd == "2":
-            reply_text = "debug 2 ok"
 
+            result = compare_q1_q2()
+            result["數量成長率"] = pd.to_numeric(result["數量成長率"], errors="coerce").fillna(0)
+
+            top_up = result.sort_values("數量成長率", ascending=False).head(5)
+            top_down = result.sort_values("數量成長率").head(5)
+
+            lines = ["📊 Q1 vs Q2"]
+
+            for _, r in top_up.iterrows():
+                lines.append(f"{r['商品名稱']} ↑ {r['數量成長率']:.2f}%")
+
+            lines.append("----")
+
+            for _, r in top_down.iterrows():
+                lines.append(f"{r['商品名稱']} ↓ {r['數量成長率']:.2f}%")
+
+            reply_text = "\n".join(lines)
+
+        # ======================
+        # !
+        # ======================
         elif cmd == "!":
             reply_text = "debug ! ok"
 
@@ -60,182 +122,28 @@ def handle_message(event):
             reply_text = "debug 讚 ok"
 
         else:
-            reply_text = "menu ok"
+            reply_text = "請輸入 1 / 2 / ! / 讚"
 
     except Exception as e:
-        print("ERROR:", e)
+        print("HANDLE ERROR:", e)
         reply_text = f"error: {e}"
 
-    with ApiClient(configuration) as api_client:
-        MessagingApi(api_client).reply_message(
-            ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[TextMessage(text=reply_text)]
-            )
-        )
+    # ======================
+    # reply safety trim
+    # ======================
+    reply_text = reply_text[:4900]
 
-@handler.add(MessageEvent, message=TextMessageContent)
-def handle_message(event):
-
-    cmd = event.message.text.strip().lower().replace("！", "!")
-    cmd = cmd.replace("１", "1").replace("２", "2")
-
-    print("DEBUG cmd =", repr(cmd))
-
-    # ==========================
-    # Q1 vs 4~6月
-    # ==========================
-    if cmd == "1":
-
-        all_months = []
-
-        for month in [4, 5, 6]:
-            df = compare_q1_month(month)
-            df["數量成長率"] = pd.to_numeric(df["數量成長率"], errors="coerce").fillna(0)
-            df["月份"] = month
-            all_months.append(df)
-
-        result = pd.concat(all_months)
-
-        summary = result.groupby(
-            ["商品名稱"],
-            as_index=False
-        )["數量成長率"].mean()
-
-        top_up = summary.sort_values("數量成長率", ascending=False).head(5)
-        top_down = summary.sort_values("數量成長率", ascending=True).head(5)
-
-        lines = []
-        lines.append("📊 Q1 vs 4~6月 BI摘要\n")
-
-        lines.append("🔥 成長最多 TOP 5")
-        for _, r in top_up.iterrows():
-            lines.append(f"{r['商品名稱']} ↑ {r['數量成長率']:.2f}%")
-
-        lines.append("\n📉 下滑最多 TOP 5")
-        for _, r in top_down.iterrows():
-            lines.append(f"{r['商品名稱']} ↓ {r['數量成長率']:.2f}%")
-
-        lines.append("\n📦 分析月份：4~6月")
-
-        reply_text = "\n".join(lines)
-
-    # ==========================
-    # Q1 vs Q2
-    # ==========================
-    elif cmd == "2":
-
-        result = compare_q1_q2()
-
-        result["數量成長率"] = pd.to_numeric(
-            result["數量成長率"],
-            errors="coerce"
-        ).fillna(0)
-
-        top_up = result.sort_values("數量成長率", ascending=False).head(5)
-        top_down = result.sort_values("數量成長率", ascending=True).head(5)
-
-        lines = []
-        lines.append("📊 Q1 vs Q2 BI摘要\n")
-
-        lines.append("🔥 成長最多 TOP 5")
-        for _, r in top_up.iterrows():
-            lines.append(f"{r['商品名稱']} ↑ {r['數量成長率']:.2f}%")
-
-        lines.append("\n📉 下滑最多 TOP 5")
-        for _, r in top_down.iterrows():
-            lines.append(f"{r['商品名稱']} ↓ {r['數量成長率']:.2f}%")
-
-        lines.append(f"\n📦 總商品數：{len(result)}")
-
-        reply_text = "\n".join(lines)
-
-    # ==========================
-    # 未回覆低星評論
-    # ==========================
-    elif cmd == "!":
-
-        df = pd.read_csv("Google評論列表頁.csv")
-
-        df["評論星級"] = pd.to_numeric(df["評論星級"], errors="coerce")
-
-        filtered = df[
-            (df["評論星級"] <= 3)
-            &
-            (
-                df["商家是否回復"].isna()
-                |
-                (df["商家是否回復"].astype(str).str.strip() == "")
-            )
-        ]
-
-        if filtered.empty:
-            reply_text = "沒有未回覆的低星評論"
-
-        else:
-            lines = []
-            for _, row in filtered.iterrows():
-                review = str(row["評論內容"])
-                if review == "nan":
-                    review = "（無文字評論）"
-
-                lines.append(
-                    f"👤{row['評論者名稱']}\n"
-                    f"⭐{int(row['評論星級'])}星\n"
-                    f"🕒{row['評論時間']}\n"
-                    f"{review}\n"
-                    "(未回覆)"
+    try:
+        with ApiClient(configuration) as api_client:
+            MessagingApi(api_client).reply_message(
+                ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[TextMessage(text=reply_text)]
                 )
-
-            reply_text = "\n\n────────\n\n".join(lines[:10])
-
-    # ==========================
-    # 五星評論
-    # ==========================
-    elif cmd == "讚":
-
-        df = pd.read_csv("Google評論列表頁.csv")
-
-        df["評論星級"] = pd.to_numeric(df["評論星級"], errors="coerce")
-
-        filtered = df[df["評論星級"] == 5]
-
-        if filtered.empty:
-            reply_text = "沒有5星評論"
-
-        else:
-            lines = []
-            for _, row in filtered.iterrows():
-                review = str(row["評論內容"])
-                if review == "nan":
-                    review = "（無文字評論）"
-
-                lines.append(
-                    f"👤{row['評論者名稱']}\n"
-                    f"⭐{int(row['評論星級'])}星\n"
-                    f"🕒{row['評論時間']}\n"
-                    f"{review}"
-                )
-
-            reply_text = "\n\n────────\n\n".join(lines[:10])
-
-    # ==========================
-    # fallback
-    # ==========================
-    else:
-        reply_text = "請輸入 1 / 2 / ! / 讚"
-
-    # ==========================
-    # 回覆 LINE
-    # ==========================
-    with ApiClient(configuration) as api_client:
-        MessagingApi(api_client).reply_message(
-            ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[TextMessage(text=reply_text[:4900])]
             )
-        )
+    except Exception as e:
+        print("REPLY ERROR:", e)
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, port=5000)
