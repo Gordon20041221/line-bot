@@ -19,7 +19,7 @@ from analysis import compare_q1_q2, compare_q1_month
 app = Flask(__name__)
 
 CHANNEL_SECRET = "b9b37d37acd59e2bc66b6da9ed522091"
-CHANNEL_ACCESS_TOKEN = "T6QIYaWvtcvzItHV2tq0UAqJCl6/wtEODCXGUalyawLysWXNlqFmnNeKUaWIRSyB2qm4fIMpAsDRi5oYgnp/jORm67zCMHgiLiC9G8Z5Uhu09nEi9nyJMHjzjZU1sJ0CkBn796KQ0oQVHpFGSOK7egdB04t89/1O/w1cDnyilFU="
+CHANNEL_ACCESS_TOKEN = "YOUR_TOKEN"
 
 configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(CHANNEL_SECRET)
@@ -32,12 +32,10 @@ def home():
 
 @app.route("/callback", methods=["POST"])
 def callback():
-
     signature = request.headers["X-Line-Signature"]
     body = request.get_data(as_text=True)
 
     handler.handle(body, signature)
-
     return "OK"
 
 
@@ -46,51 +44,44 @@ def handle_message(event):
 
     cmd = event.message.text.strip().lower().replace("！", "!")
     cmd = cmd.replace("１", "1").replace("２", "2")
+
     print("DEBUG cmd =", repr(cmd))
 
     # ==========================
-    # Q1 vs 4、5、6 月
+    # Q1 vs 4~6月
     # ==========================
     if cmd == "1":
 
-        lines = []
+        all_months = []
 
         for month in [4, 5, 6]:
+            df = compare_q1_month(month)
+            df["數量成長率"] = pd.to_numeric(df["數量成長率"], errors="coerce").fillna(0)
+            df["月份"] = month
+            all_months.append(df)
 
-            result = compare_q1_month(month)
+        result = pd.concat(all_months)
 
-            # 用數量差異排序（較合理）
-            result = result.sort_values(
-                "數量差異",
-                ascending=False
-            )
+        summary = result.groupby(
+            ["商品名稱"],
+            as_index=False
+        )["數量成長率"].mean()
 
-            lines.append(f"\n📊 Q1 vs {month}月\n")
+        top_up = summary.sort_values("數量成長率", ascending=False).head(5)
+        top_down = summary.sort_values("數量成長率", ascending=True).head(5)
 
-            for _, row in result.iterrows():
+        lines = []
+        lines.append("📊 Q1 vs 4~6月 BI摘要\n")
 
-                q1_qty = int(row["銷售數量_Q1"])
-                qm_qty = int(row[f"銷售數量_{month}月"])
+        lines.append("🔥 成長最多 TOP 5")
+        for _, r in top_up.iterrows():
+            lines.append(f"{r['商品名稱']} ↑ {r['數量成長率']:.2f}%")
 
-                qty_diff = int(row["數量差異"])
-                rate = float(row["數量成長率"])
+        lines.append("\n📉 下滑最多 TOP 5")
+        for _, r in top_down.iterrows():
+            lines.append(f"{r['商品名稱']} ↓ {r['數量成長率']:.2f}%")
 
-                if qty_diff > 0:
-                    arrow = "↑"
-                elif qty_diff < 0:
-                    arrow = "↓"
-                else:
-                    arrow = "→"
-
-                name = str(row["商品名稱"])
-
-                line = (
-                    f"{name:<8} "
-                    f"{q1_qty:>5}→{qm_qty:<5} "
-                    f"{arrow}{rate:.2f}%"
-                )
-
-                lines.append(line)
+        lines.append("\n📦 分析月份：4~6月")
 
         reply_text = "\n".join(lines)
 
@@ -101,39 +92,28 @@ def handle_message(event):
 
         result = compare_q1_q2()
 
-        result = result.sort_values(
-            "實銷金額_Q2",
-            ascending=False
-        )
+        result["數量成長率"] = pd.to_numeric(
+            result["數量成長率"],
+            errors="coerce"
+        ).fillna(0)
+
+        top_up = result.sort_values("數量成長率", ascending=False).head(5)
+        top_down = result.sort_values("數量成長率", ascending=True).head(5)
 
         lines = []
+        lines.append("📊 Q1 vs Q2 BI摘要\n")
 
-        for _, row in result.iterrows():
+        lines.append("🔥 成長最多 TOP 5")
+        for _, r in top_up.iterrows():
+            lines.append(f"{r['商品名稱']} ↑ {r['數量成長率']:.2f}%")
 
-            q1_qty = int(row["銷售數量_Q1"])
-            q2_qty = int(row["銷售數量_Q2"])
+        lines.append("\n📉 下滑最多 TOP 5")
+        for _, r in top_down.iterrows():
+            lines.append(f"{r['商品名稱']} ↓ {r['數量成長率']:.2f}%")
 
-            qty_diff = int(row["數量差異"])
-            rate = float(row["數量成長率"])
+        lines.append(f"\n📦 總商品數：{len(result)}")
 
-            if qty_diff > 0:
-                arrow = "↑"
-            elif qty_diff < 0:
-                arrow = "↓"
-            else:
-                arrow = "→"
-
-            name = str(row["商品名稱"])
-
-            line = (
-                f"{name:<8} "
-                f"{q1_qty:>5}→{q2_qty:<5} "
-                f"{arrow}{rate:.2f}%"
-            )
-
-            lines.append(line)
-
-        reply_text = "Q1 vs Q2（銷售數量比較）\n\n" + "\n".join(lines)
+        reply_text = "\n".join(lines)
 
     # ==========================
     # 未回覆低星評論
@@ -159,11 +139,8 @@ def handle_message(event):
 
         else:
             lines = []
-
             for _, row in filtered.iterrows():
-
                 review = str(row["評論內容"])
-
                 if review == "nan":
                     review = "（無文字評論）"
 
@@ -193,11 +170,8 @@ def handle_message(event):
 
         else:
             lines = []
-
             for _, row in filtered.iterrows():
-
                 review = str(row["評論內容"])
-
                 if review == "nan":
                     review = "（無文字評論）"
 
@@ -211,27 +185,19 @@ def handle_message(event):
             reply_text = "\n\n────────\n\n".join(lines[:10])
 
     # ==========================
-    # 功能選單
+    # fallback
     # ==========================
     else:
-
-        reply_text = (
-            "請輸入以下指令：\n\n"
-            "1️ Q1 vs 4~6月\n"
-            "2️ Q1 vs Q2\n"
-            "!️ 低星未回覆評論\n"
-            "讚 五星評論"
-        )
+        reply_text = "請輸入 1 / 2 / ! / 讚"
 
     # ==========================
     # 回覆 LINE
     # ==========================
     with ApiClient(configuration) as api_client:
-
         MessagingApi(api_client).reply_message(
             ReplyMessageRequest(
                 reply_token=event.reply_token,
-                messages=[TextMessage(text=reply_text)]
+                messages=[TextMessage(text=reply_text[:4900])]
             )
         )
 
