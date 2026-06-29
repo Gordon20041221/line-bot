@@ -2,37 +2,67 @@ import pandas as pd
 import re
 
 # ==========================
-# 清洗 raw CSV（重點）
+# 🔥 核心：穩定報表清洗器
 # ==========================
 def clean_csv_to_df(filename):
 
     data = []
 
     with open(filename, "r", encoding="cp950", errors="ignore") as f:
+
         for line in f:
 
             line = line.strip()
             if not line:
                 continue
 
-            # 👉 只抓商品列（第一欄是數字）
-            if re.match(r"^\d+\t", line):
+            # ==========================
+            # ❌ 排除無效列
+            # ==========================
+            if any(x in line for x in ["小計", "類別", "合計", "名次："]):
+                continue
 
-                cols = line.split("\t")
+            # 必須有商品編號（避免抓到 header）
+            if "商品編號" not in line:
+                continue
 
-                # 防呆：欄位太短直接跳過
-                if len(cols) < 8:
+            # ==========================
+            # 拆欄（tab + 多空白）
+            # ==========================
+            cols = re.split(r"\t+|\s{2,}", line)
+
+            if len(cols) < 6:
+                continue
+
+            try:
+                product_id = cols[1].strip()
+                product_name = cols[2].strip()
+
+                # ==========================
+                # 抓所有數字欄（避免欄位錯位）
+                # ==========================
+                numbers = []
+
+                for c in cols:
+                    c = c.replace(",", "").strip()
+                    if re.match(r"^-?\d+(\.\d+)?$", c):
+                        numbers.append(float(c))
+
+                if len(numbers) < 2:
                     continue
 
-                try:
-                    data.append([
-                        cols[1],  # 商品編號
-                        cols[2],  # 商品名稱
-                        cols[5],  # 銷售數量
-                        cols[7]   # 實銷金額
-                    ])
-                except:
-                    continue
+                qty = numbers[-2]       # 銷售數量
+                amount = numbers[-1]    # 實銷金額
+
+                data.append([
+                    product_id,
+                    product_name,
+                    qty,
+                    amount
+                ])
+
+            except:
+                continue
 
     df = pd.DataFrame(data, columns=[
         "商品編號",
@@ -41,33 +71,23 @@ def clean_csv_to_df(filename):
         "實銷金額"
     ])
 
-    return df
-
-
-# ==========================
-# 讀取月份（已改：先清洗）
-# ==========================
-def read_month(month):
-
-    filename = f"{month}.csv"
-    print("READ FILE:", filename)
-
-    # 🔥 先清洗再進 dataframe
-    df = clean_csv_to_df(filename)
-
-    print(df.head())
-    print(df.columns)
-
-    df["商品編號"] = df["商品編號"].astype(str)
+    # ==========================
+    # 🔥 最後清洗
+    # ==========================
+    df["商品編號"] = df["商品編號"].astype(str).str.strip()
+    df["商品名稱"] = df["商品名稱"].astype(str).str.strip()
 
     df["銷售數量"] = pd.to_numeric(df["銷售數量"], errors="coerce").fillna(0)
     df["實銷金額"] = pd.to_numeric(df["實銷金額"], errors="coerce").fillna(0)
 
+    # 去掉空資料
+    df = df[df["商品編號"].str.len() > 0]
+
     return df
 
 
 # ==========================
-# 商品加總
+# 📦 加總
 # ==========================
 def summary(df):
 
@@ -78,36 +98,53 @@ def summary(df):
 
 
 # ==========================
-# Q1
+# 📊 讀月份
+# ==========================
+def read_month(month):
+
+    filename = f"{month}.csv"
+    print("READ FILE:", filename)
+
+    df = clean_csv_to_df(filename)
+
+    print("shape:", df.shape)
+    print(df.head())
+
+    return df
+
+
+# ==========================
+# 📦 Q1
 # ==========================
 def build_q1():
-    q1 = pd.concat([
+    return summary(pd.concat([
         read_month(1),
         read_month(2),
         read_month(3)
-    ])
-    return summary(q1)
+    ], ignore_index=True))
 
 
 # ==========================
-# Q2
+# 📦 Q2
 # ==========================
 def build_q2():
-    q2 = pd.concat([
+    return summary(pd.concat([
         read_month(4),
         read_month(5),
         read_month(6)
-    ])
-    return summary(q2)
+    ], ignore_index=True))
 
 
 # ==========================
-# Q1 vs Q2
+# 📊 Q1 vs Q2
 # ==========================
 def compare_q1_q2():
 
     q1 = build_q1()
     q2 = build_q2()
+
+    print("Q1 shape:", q1.shape)
+    print("Q2 shape:", q2.shape)
 
     result = pd.merge(
         q1,
@@ -115,9 +152,7 @@ def compare_q1_q2():
         on=["商品編號", "商品名稱"],
         how="outer",
         suffixes=("_Q1", "_Q2")
-    )
-
-    result = result.fillna(0)
+    ).fillna(0)
 
     result["數量差異"] = result["銷售數量_Q2"] - result["銷售數量_Q1"]
     result["金額差異"] = result["實銷金額_Q2"] - result["實銷金額_Q1"]
@@ -136,7 +171,7 @@ def compare_q1_q2():
 
 
 # ==========================
-# Q1 vs 單月
+# 📊 Q1 vs 單月
 # ==========================
 def compare_q1_month(month):
 
@@ -148,13 +183,11 @@ def compare_q1_month(month):
         m,
         on=["商品編號", "商品名稱"],
         how="outer",
-        suffixes=("_Q1", f"_{month}月")
-    )
+        suffixes=("_Q1", f"_{month}")
+    ).fillna(0)
 
-    result = result.fillna(0)
-
-    result["數量差異"] = result[f"銷售數量_{month}月"] - result["銷售數量_Q1"]
-    result["金額差異"] = result[f"實銷金額_{month}月"] - result["實銷金額_Q1"]
+    result["數量差異"] = result[f"銷售數量_{month}"] - result["銷售數量_Q1"]
+    result["金額差異"] = result[f"實銷金額_{month}"] - result["實銷金額_Q1"]
 
     result["數量成長率"] = (
         result["數量差異"] /
