@@ -45,7 +45,9 @@ def callback():
 def handle_message(event):
 
     cmd = event.message.text.strip().lower().replace("！", "!")
-
+    cmd = cmd.replace("１", "1").replace("２", "2")
+    print("DEBUG cmd =", repr(cmd))
+    
     # ==========================
     # Q1 vs 4、5、6 月
     # ==========================
