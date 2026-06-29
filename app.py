@@ -18,9 +18,8 @@ from analysis import compare_q1_q2, compare_q1_month
 
 app = Flask(__name__)
 
-CHANNEL_SECRET = "YOUR_SECRET"
-CHANNEL_ACCESS_TOKEN = "YOUR_TOKEN"
-
+CHANNEL_SECRET = "b9b37d37acd59e2bc66b6da9ed522091"
+CHANNEL_ACCESS_TOKEN = "T6QIYaWvtcvzItHV2tq0UAqJCl6/wtEODCXGUalyawLysWXNlqFmnNeKUaWIRSyB2qm4fIMpAsDRi5oYgnp/jORm67zCMHgiLiC9G8Z5Uhu09nEi9nyJMHjzjZU1sJ0CkBn796KQ0oQVHpFGSOK7egdB04t89/1O/w1cDnyilFU="
 configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(CHANNEL_SECRET)
 
@@ -202,7 +201,50 @@ def handle_message(event):
         reply_text = "（五星評論功能保留）"
 
     else:
-        reply_text = "請輸入：a / b / ! / 讚"
+        reply_text = (
+            "📊 BI分析系統\n\n"
+            "請輸入功能：\n\n"
+            "A：Q1 vs 4~6月（月分析）\n"
+            "→ 每月逐品項分析銷量與金額變化\n\n"
+            "B：Q1 vs Q2（季度平均分析）\n"
+            "→ Q1(1~3月平均) vs Q2(4~6月平均)\n"
+            "→ 分析整體品項變化\n\n"
+            "！：未回覆低星評論\n"
+            "→ 顯示 1~3星且未回覆的評論\n\n"
+            "讚：五星評論整理\n"
+            "→ 顯示所有 5星好評內容\n\n"
+            "────────────────\n"
+            "⚠️ 操作流程：\n"
+            "先輸入 A / B → 再輸入類別代號（1~27）\n\n"
+            "📦 類別清單：\n"
+            "1 小點類\n"
+            "2 蔬菜類\n"
+            "3 肉類\n"
+            "4 秤重肉類\n"
+            "5 麵類\n"
+            "6 手工類\n"
+            "7 茶飲\n"
+            "8 秤重蔬菜\n"
+            "9 功夫菜\n"
+            "10 調味\n"
+            "11 外帶肉類\n"
+            "12 套餐\n"
+            "13 套餐子項\n"
+            "14 餐費\n"
+            "15 外帶套餐\n"
+            "16 特製餐點\n"
+            "17 秤重滷味\n"
+            "18 精選肉類\n"
+            "19 綜合好料\n"
+            "20 家常蔬菜\n"
+            "21 嚴選手作\n"
+            "22 圈樓煮麵\n"
+            "23 丹瓦調飲\n"
+            "24 好料組合區\n"
+            "25 強檔必點\n"
+            "26 panda套餐\n"
+            "27 組合套餐"
+        )
 
     # ==========================
     # reply
