@@ -1,39 +1,67 @@
-from fileinput import filename
-
 import pandas as pd
+import re
 
 # ==========================
-# 讀取月份（穩定版）
+# 清洗 raw CSV（重點）
+# ==========================
+def clean_csv_to_df(filename):
+
+    data = []
+
+    with open(filename, "r", encoding="cp950", errors="ignore") as f:
+        for line in f:
+
+            line = line.strip()
+            if not line:
+                continue
+
+            # 👉 只抓商品列（第一欄是數字）
+            if re.match(r"^\d+\t", line):
+
+                cols = line.split("\t")
+
+                # 防呆：欄位太短直接跳過
+                if len(cols) < 8:
+                    continue
+
+                try:
+                    data.append([
+                        cols[1],  # 商品編號
+                        cols[2],  # 商品名稱
+                        cols[5],  # 銷售數量
+                        cols[7]   # 實銷金額
+                    ])
+                except:
+                    continue
+
+    df = pd.DataFrame(data, columns=[
+        "商品編號",
+        "商品名稱",
+        "銷售數量",
+        "實銷金額"
+    ])
+
+    return df
+
+
+# ==========================
+# 讀取月份（已改：先清洗）
 # ==========================
 def read_month(month):
 
     filename = f"{month}.csv"
     print("READ FILE:", filename)
-    df = pd.read_csv(filename, dtype=str)
+
+    # 🔥 先清洗再進 dataframe
+    df = clean_csv_to_df(filename)
+
     print(df.head())
     print(df.columns)
-    df.columns = df.columns.str.strip()
-
-    df = df[
-        [
-            "商品編號",
-            "商品名稱",
-            "銷售數量",
-            "實銷金額"
-        ]
-    ]
 
     df["商品編號"] = df["商品編號"].astype(str)
 
-    df["銷售數量"] = pd.to_numeric(
-        df["銷售數量"],
-        errors="coerce"
-    ).fillna(0)
-
-    df["實銷金額"] = pd.to_numeric(
-        df["實銷金額"],
-        errors="coerce"
-    ).fillna(0)
+    df["銷售數量"] = pd.to_numeric(df["銷售數量"], errors="coerce").fillna(0)
+    df["實銷金額"] = pd.to_numeric(df["實銷金額"], errors="coerce").fillna(0)
 
     return df
 
@@ -43,25 +71,21 @@ def read_month(month):
 # ==========================
 def summary(df):
 
-    df = df.groupby(
+    return df.groupby(
         ["商品編號", "商品名稱"],
         as_index=False
     )[["銷售數量", "實銷金額"]].sum()
-
-    return df
 
 
 # ==========================
 # Q1
 # ==========================
 def build_q1():
-
     q1 = pd.concat([
         read_month(1),
         read_month(2),
         read_month(3)
     ])
-
     return summary(q1)
 
 
@@ -69,13 +93,11 @@ def build_q1():
 # Q2
 # ==========================
 def build_q2():
-
     q2 = pd.concat([
         read_month(4),
         read_month(5),
         read_month(6)
     ])
-
     return summary(q2)
 
 
@@ -95,29 +117,19 @@ def compare_q1_q2():
         suffixes=("_Q1", "_Q2")
     )
 
-    # 安全補 0
-    result = result.fillna({
-        "銷售數量_Q1": 0,
-        "銷售數量_Q2": 0,
-        "實銷金額_Q1": 0,
-        "實銷金額_Q2": 0
-    })
+    result = result.fillna(0)
 
-    # 差異
     result["數量差異"] = result["銷售數量_Q2"] - result["銷售數量_Q1"]
     result["金額差異"] = result["實銷金額_Q2"] - result["實銷金額_Q1"]
 
-    # 成長率（避免除0）
     result["數量成長率"] = (
-        result["數量差異"]
-        / result["銷售數量_Q1"].replace(0, pd.NA)
-        * 100
+        result["數量差異"] /
+        result["銷售數量_Q1"].replace(0, pd.NA) * 100
     ).fillna(0).round(2)
 
     result["金額成長率"] = (
-        result["金額差異"]
-        / result["實銷金額_Q1"].replace(0, pd.NA)
-        * 100
+        result["金額差異"] /
+        result["實銷金額_Q1"].replace(0, pd.NA) * 100
     ).fillna(0).round(2)
 
     return result
@@ -139,33 +151,19 @@ def compare_q1_month(month):
         suffixes=("_Q1", f"_{month}月")
     )
 
-    result = result.fillna({
-        "銷售數量_Q1": 0,
-        f"銷售數量_{month}月": 0,
-        "實銷金額_Q1": 0,
-        f"實銷金額_{month}月": 0
-    })
+    result = result.fillna(0)
 
-    result["數量差異"] = (
-        result[f"銷售數量_{month}月"]
-        - result["銷售數量_Q1"]
-    )
-
-    result["金額差異"] = (
-        result[f"實銷金額_{month}月"]
-        - result["實銷金額_Q1"]
-    )
+    result["數量差異"] = result[f"銷售數量_{month}月"] - result["銷售數量_Q1"]
+    result["金額差異"] = result[f"實銷金額_{month}月"] - result["實銷金額_Q1"]
 
     result["數量成長率"] = (
-        result["數量差異"]
-        / result["銷售數量_Q1"].replace(0, pd.NA)
-        * 100
+        result["數量差異"] /
+        result["銷售數量_Q1"].replace(0, pd.NA) * 100
     ).fillna(0).round(2)
 
     result["金額成長率"] = (
-        result["金額差異"]
-        / result["實銷金額_Q1"].replace(0, pd.NA)
-        * 100
+        result["金額差異"] /
+        result["實銷金額_Q1"].replace(0, pd.NA) * 100
     ).fillna(0).round(2)
 
     return result
