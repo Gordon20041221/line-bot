@@ -86,7 +86,7 @@ def handle_message(event):
             # A MODE：Q1 vs 4、5、6月
             # ==================================
             if state == "A_WAIT":
-
+                lines = ["A MODE category =", category]
                 lines = [f"📊 {category}｜Q1 vs 各月份"]
 
                 for m in [4, 5, 6]:
