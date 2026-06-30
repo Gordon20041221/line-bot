@@ -86,7 +86,6 @@ def handle_message(event):
             # A MODE：Q1 vs 4、5、6月
             # ==================================
             if state == "A_WAIT":
-                lines = ["A MODE category =", category]
                 lines = [f"📊 {category}｜Q1 vs 各月份"]
 
                 for m in [4, 5, 6]:
@@ -98,25 +97,25 @@ def handle_message(event):
                     if df.empty:
                         lines.append("沒有資料")
                         continue
+                    else:
+                        for _, r in df.iterrows():
 
-                    for _, r in df.iterrows():
+                            qty_diff = r["數量差異"]
+                            amt_diff = r["金額差異"]
 
-                        qty_diff = r["數量差異"]
-                        amt_diff = r["金額差異"]
+                            qty_rate = r["數量成長率"]
+                            amt_rate = r["金額成長率"]
 
-                        qty_rate = r["數量成長率"]
-                        amt_rate = r["金額成長率"]
+                            qty_arrow = "↑" if qty_diff >= 0 else "↓"
+                            amt_arrow = "↑" if amt_diff >= 0 else "↓"
 
-                        qty_arrow = "↑" if qty_diff >= 0 else "↓"
-                        amt_arrow = "↑" if amt_diff >= 0 else "↓"
+                            lines.append(
+                                f"{r['商品名稱']} ({r['單位']})\n"
+                                f"銷量：{qty_arrow}{abs(qty_diff):.0f} ({qty_rate:.1f}%)\n"
+                                f"金額：{amt_arrow}{abs(amt_diff):.0f} ({amt_rate:.1f}%)"
+                            )
 
-                        lines.append(
-                            f"{r['商品名稱']} ({r['單位']})\n"
-                            f"銷量：{qty_arrow}{abs(qty_diff):.0f} ({qty_rate:.1f}%)\n"
-                            f"金額：{amt_arrow}{abs(amt_diff):.0f} ({amt_rate:.1f}%)"
-                        )
-
-                reply_text = "\n\n".join(lines)
+                    reply_text = "\n\n".join(lines)
 
             # ==================================
             # B MODE：Q1 vs Q2
