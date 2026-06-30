@@ -63,17 +63,6 @@ def handle_message(event):
     # ==========================
     # A MODE FLOW
     # ==========================
-    elif isinstance(state, dict) and state.get("mode") == "A_WAIT_MONTH":
-
-        if not cmd.isdigit() or int(cmd) not in range(1, 13):
-            reply_text = "錯誤：請輸入月份 1~12"
-        else:
-            user_state[user_id] = {
-                "mode": "A",
-                "month": int(cmd)
-            }
-            reply_text = "請輸入品項 (1~27)"
-
     elif isinstance(state, dict) and state.get("mode") == "A":
 
         month = state["month"]
@@ -86,47 +75,46 @@ def handle_message(event):
 
             df = compare_month_vs_prev_quarter(month, category)
 
-            if df.empty:
+            # ==========================
+            # 防呆：空資料 / 全 NaN
+            # ==========================
+            if df.empty or df.dropna(how="all").empty:
                 reply_text = "沒有資料"
 
             else:
-                r = df.iloc[0]
-
-                # 修正：動態抓上一季（避免你之前 Q1 bug）
                 q = get_quarter(month)
                 prev_q = 4 if q == 1 else q - 1
 
                 qty_now = f"銷售數量_{month}月"
                 amt_now = f"實銷金額_{month}月"
-
                 qty_prev = f"銷售數量_Q{prev_q}"
                 amt_prev = f"實銷金額_Q{prev_q}"
 
-                reply_text = (
-                    f"📊 {category}｜{month}月 vs Q{prev_q}\n"
-                    f"{r['商品名稱']} ({r['單位']})\n"
-                    f"數量：{r[qty_now]:.0f} → {r[qty_prev]:.0f} "
-                    f"{'↑' if r['數量差異'] >= 0 else '↓'}{abs(r['數量差異']):.0f} ({r['數量成長率']:.1f}%)\n"
-                    f"金額：{r[amt_now]:.0f} → {r[amt_prev]:.0f} "
-                    f"{'↑' if r['金額差異'] >= 0 else '↓'}{abs(r['金額差異']):.0f} ({r['金額成長率']:.1f}%)"
-                )
+                lines = [f"📊 {category}｜{month}月 vs Q{prev_q}"]
+
+                # ==========================
+                # 多品項輸出
+                # ==========================
+                for _, r in df.iterrows():
+
+                    if pd.isna(r["商品名稱"]):
+                        continue
+
+                    lines.append(
+                        f"\n{r['商品名稱']} ({r['單位']})\n"
+                        f"數量：{r[qty_now]:.0f} → {r[qty_prev]:.0f} "
+                        f"{'↑' if r['數量差異'] >= 0 else '↓'}{abs(r['數量差異']):.0f} ({r['數量成長率']:.1f}%)\n"
+                        f"金額：{r[amt_now]:.0f} → {r[amt_prev]:.0f} "
+                        f"{'↑' if r['金額差異'] >= 0 else '↓'}{abs(r['金額差異']):.0f} ({r['金額成長率']:.1f}%)"
+                    )
+
+                reply_text = "\n".join(lines)
 
             user_state.pop(user_id, None)
 
     # ==========================
     # B MODE FLOW
     # ==========================
-    elif isinstance(state, dict) and state.get("mode") == "B_WAIT_QUARTER":
-
-        if not cmd.isdigit() or int(cmd) not in [1, 2, 3, 4]:
-            reply_text = "錯誤：請輸入季度 1~4"
-        else:
-            user_state[user_id] = {
-                "mode": "B",
-                "quarter": int(cmd)
-            }
-            reply_text = "請輸入品項 (1~27)"
-
     elif isinstance(state, dict) and state.get("mode") == "B":
 
         q_to = state["quarter"]
@@ -140,20 +128,37 @@ def handle_message(event):
 
             df = compare_quarter(q_from, q_to, category)
 
-            if df.empty:
+            # ==========================
+            # 防呆：空資料 / NaN
+            # ==========================
+            if df.empty or df.dropna(how="all").empty:
                 reply_text = "沒有資料"
 
             else:
-                r = df.iloc[0]
+                lines = [f"📊 {category}｜Q{q_from} → Q{q_to}"]
 
-                reply_text = (
-                    f"📊 {category}｜Q{q_from} → Q{q_to}\n"
-                    f"{r['商品名稱']} ({r['單位']})\n"
-                    f"數量：{r[f'銷售數量_Q{q_from}']:.0f} → {r[f'銷售數量_Q{q_to}']:.0f} "
-                    f"{'↑' if r['數量差異'] >= 0 else '↓'}{abs(r['數量差異']):.0f} ({r['數量成長率']:.1f}%)\n"
-                    f"金額：{r[f'實銷金額_Q{q_from}']:.0f} → {r[f'實銷金額_Q{q_to}']:.0f} "
-                    f"{'↑' if r['金額差異'] >= 0 else '↓'}{abs(r['金額差異']):.0f} ({r['金額成長率']:.1f}%)"
-                )
+                qty_from = f"銷售數量_Q{q_from}"
+                qty_to = f"銷售數量_Q{q_to}"
+                amt_from = f"實銷金額_Q{q_from}"
+                amt_to = f"實銷金額_Q{q_to}"
+
+                # ==========================
+                # 多品項輸出
+                # ==========================
+                for _, r in df.iterrows():
+
+                    if pd.isna(r["商品名稱"]):
+                        continue
+
+                    lines.append(
+                        f"\n{r['商品名稱']} ({r['單位']})\n"
+                        f"數量：{r[qty_from]:.0f} → {r[qty_to]:.0f} "
+                        f"{'↑' if r['數量差異'] >= 0 else '↓'}{abs(r['數量差異']):.0f} ({r['數量成長率']:.1f}%)\n"
+                        f"金額：{r[amt_from]:.0f} → {r[amt_to]:.0f} "
+                        f"{'↑' if r['金額差異'] >= 0 else '↓'}{abs(r['金額差異']):.0f} ({r['金額成長率']:.1f}%)"
+                    )
+
+                reply_text = "\n".join(lines)
 
             user_state.pop(user_id, None)
     # ==========================
