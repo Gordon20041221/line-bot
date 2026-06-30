@@ -61,7 +61,21 @@ def handle_message(event):
         reply_text = "B模式：請輸入季度 (1~4)"
 
     # ==========================
-    # A MODE FLOW
+    # A WAIT MONTH
+    # ==========================
+    elif isinstance(state, dict) and state.get("mode") == "A_WAIT_MONTH":
+
+        if not cmd.isdigit() or int(cmd) not in range(1, 13):
+            reply_text = "錯誤：請輸入月份 1~12"
+        else:
+            user_state[user_id] = {
+                "mode": "A",
+                "month": int(cmd)
+            }
+            reply_text = "請輸入品項 (1~27)"
+
+    # ==========================
+    # A MODE
     # ==========================
     elif isinstance(state, dict) and state.get("mode") == "A":
 
@@ -72,16 +86,14 @@ def handle_message(event):
 
         else:
             category = category_map[cmd]
-
             df = compare_month_vs_prev_quarter(month, category)
 
-            # ==========================
-            # 防呆：空資料 / 全 NaN
-            # ==========================
-            if df.empty or df.dropna(how="all").empty:
+            if df.empty:
                 reply_text = "沒有資料"
 
             else:
+                df = df.sort_values("數量差異", ascending=False)
+
                 q = get_quarter(month)
                 prev_q = 4 if q == 1 else q - 1
 
@@ -92,12 +104,9 @@ def handle_message(event):
 
                 lines = [f"📊 {category}｜{month}月 vs Q{prev_q}"]
 
-                # ==========================
-                # 多品項輸出
-                # ==========================
                 for _, r in df.iterrows():
 
-                    if pd.isna(r["商品名稱"]):
+                    if pd.isna(r["商品名稱"]) or str(r["商品名稱"]).strip() == "":
                         continue
 
                     lines.append(
@@ -113,7 +122,21 @@ def handle_message(event):
             user_state.pop(user_id, None)
 
     # ==========================
-    # B MODE FLOW
+    # B WAIT QUARTER
+    # ==========================
+    elif isinstance(state, dict) and state.get("mode") == "B_WAIT_QUARTER":
+
+        if not cmd.isdigit() or int(cmd) not in [1, 2, 3, 4]:
+            reply_text = "錯誤：請輸入季度 1~4"
+        else:
+            user_state[user_id] = {
+                "mode": "B",
+                "quarter": int(cmd)
+            }
+            reply_text = "請輸入品項 (1~27)"
+
+    # ==========================
+    # B MODE
     # ==========================
     elif isinstance(state, dict) and state.get("mode") == "B":
 
@@ -125,29 +148,24 @@ def handle_message(event):
 
         else:
             category = category_map[cmd]
-
             df = compare_quarter(q_from, q_to, category)
 
-            # ==========================
-            # 防呆：空資料 / NaN
-            # ==========================
-            if df.empty or df.dropna(how="all").empty:
+            if df.empty:
                 reply_text = "沒有資料"
 
             else:
-                lines = [f"📊 {category}｜Q{q_from} → Q{q_to}"]
+                df = df.sort_values("數量差異", ascending=False)
 
                 qty_from = f"銷售數量_Q{q_from}"
                 qty_to = f"銷售數量_Q{q_to}"
                 amt_from = f"實銷金額_Q{q_from}"
                 amt_to = f"實銷金額_Q{q_to}"
 
-                # ==========================
-                # 多品項輸出
-                # ==========================
+                lines = [f"📊 {category}｜Q{q_from} → Q{q_to}"]
+
                 for _, r in df.iterrows():
 
-                    if pd.isna(r["商品名稱"]):
+                    if pd.isna(r["商品名稱"]) or str(r["商品名稱"]).strip() == "":
                         continue
 
                     lines.append(
