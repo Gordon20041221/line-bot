@@ -14,7 +14,7 @@ from linebot.v3.webhooks import (
     TextMessageContent
 )
 
-from analysis import compare_q1_month
+from analysis import compare_q1_q2, compare_q1_month
 
 app = Flask(__name__)
 
@@ -24,129 +24,137 @@ app = Flask(__name__)
 configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(CHANNEL_SECRET)
 
-# ==========================
-# 使用者狀態
-# ==========================
 user_state = {}
 
-# ==========================
-# 類別
-# ==========================
 category_map = {
-    "1": "小點類",
-    "2": "蔬菜類",
-    "3": "肉類",
-    "4": "秤重肉類",
-    "5": "麵類",
-    "6": "手工類",
-    "7": "茶飲",
-    "8": "秤重蔬菜",
-    "9": "功夫菜",
-    "10": "調味",
-    "11": "外帶肉類",
-    "12": "套餐",
-    "13": "套餐子項",
-    "14": "餐費",
-    "15": "外帶套餐",
-    "16": "特製餐點",
-    "17": "秤重滷味",
-    "18": "精選肉類",
-    "19": "綜合好料",
-    "20": "家常蔬菜",
-    "21": "嚴選手作",
-    "22": "圈樓煮麵",
-    "23": "丹瓦調飲",
-    "24": "好料組合區",
-    "25": "強檔必點",
-    "26": "panda套餐",
-    "27": "組合套餐"
+    "1": "小點類","2": "蔬菜類","3": "肉類","4": "秤重肉類","5": "麵類",
+    "6": "手工類","7": "茶飲","8": "秤重蔬菜","9": "功夫菜","10": "調味",
+    "11": "外帶肉類","12": "套餐","13": "套餐子項","14": "餐費","15": "外帶套餐",
+    "16": "特製餐點","17": "秤重滷味","18": "精選肉類","19": "綜合好料",
+    "20": "家常蔬菜","21": "嚴選手作","22": "圈樓煮麵","23": "丹瓦調飲",
+    "24": "好料組合區","25": "強檔必點","26": "panda套餐","27": "組合套餐"
 }
-
-# ==========================
-@app.route("/")
-def home():
-    return "Bot Running"
 
 
 @app.route("/callback", methods=["POST"])
 def callback():
-    signature = request.headers["X-Line-Signature"]
     body = request.get_data(as_text=True)
+    signature = request.headers["X-Line-Signature"]
     handler.handle(body, signature)
     return "OK"
 
 
-# ==========================
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
 
+    raw = event.message.text.strip()
+
+    cmd = raw.strip().lower()
+    cmd = cmd.replace("！", "!").replace("１", "1").replace("２", "2")
+
     user_id = event.source.user_id
-    cmd = event.message.text.strip()
+    state = user_state.get(user_id)
 
     reply_text = ""
 
     # ==========================
-    # 1️⃣ Q1 vs 4~6月（進入選類別）
+    # A / B entry
     # ==========================
-    if cmd == "1":
-        user_state[user_id] = {"mode": "M46"}
-        reply_text = "請輸入類別代號：\n\n" + "\n".join(
-            [f"{k}. {v}" for k, v in category_map.items()]
-        )
+    if cmd == "a":
+        user_state[user_id] = "A_WAIT"
+        reply_text = "A模式：請輸入類別 1~27"
 
-    # ==========================
-    # 2️⃣ Q1 vs Q2（進入選類別）
-    # ==========================
-    elif cmd == "2":
-        user_state[user_id] = {"mode": "Q1Q2"}
-        reply_text = "請輸入類別代號：\n\n" + "\n".join(
-            [f"{k}. {v}" for k, v in category_map.items()]
-        )
+    elif cmd == "b":
+        user_state[user_id] = "B_WAIT"
+        reply_text = "B模式：請輸入類別 1~27"
 
     # ==========================
-    # 📊 類別分析
+    # category input
     # ==========================
-    elif user_id in user_state and cmd in category_map:
+    elif state in ["A_WAIT", "B_WAIT"]:
 
-        state = user_state[user_id]
-        category = category_map[cmd]
+        cmd = str(cmd).strip()
 
-        if state["mode"] == "M46":
-            months = [4, 5, 6]
-            title = "Q1 vs 4~6月"
+        if cmd not in category_map:
+            reply_text = "錯誤：請輸入 1~27"
 
-        elif state["mode"] == "Q1Q2":
-            months = [2, 3, 4]  # Q2 (你也可改成真正 Q2)
-            title = "Q1 vs Q2"
+        else:
 
-        all_df = []
+            category = category_map[cmd]
 
-        for m in months:
-            df = compare_q1_month(m, category)
-            df["數量成長率"] = pd.to_numeric(df["數量成長率"], errors="coerce").fillna(0)
-            all_df.append(df)
+            # ==================================
+            # A MODE：Q1 vs 4、5、6月
+            # ==================================
+            if state == "A_WAIT":
+                lines = [f"📊 {category}｜Q1 vs 各月份"]
 
-        result = pd.concat(all_df)
+                for m in [4, 5, 6]:
 
-        summary = result.groupby("商品名稱", as_index=False)["數量成長率"].mean()
+                    df = compare_q1_month(m, category)
 
-        top_up = summary.sort_values("數量成長率", ascending=False).head(5)
-        top_down = summary.sort_values("數量成長率", ascending=True).head(5)
+                    lines.append(f"\n====== {m} 月 ======")
 
-        lines = [f"📊 {category} {title}\n"]
+                    if df.empty:
+                        lines.append("沒有資料")
+                        continue
+                    else:
+                        for _, r in df.iterrows():
 
-        lines.append("🔥 成長 TOP 5")
-        for _, r in top_up.iterrows():
-            lines.append(f"{r['商品名稱']} ↑ {r['數量成長率']:.2f}%")
+                            qty_diff = r["數量差異"]
+                            amt_diff = r["金額差異"]
 
-        lines.append("\n📉 下滑 TOP 5")
-        for _, r in top_down.iterrows():
-            lines.append(f"{r['商品名稱']} ↓ {r['數量成長率']:.2f}%")
+                            qty_rate = r["數量成長率"]
+                            amt_rate = r["金額成長率"]
 
-        reply_text = "\n".join(lines)
+                            qty_arrow = "↑" if qty_diff >= 0 else "↓"
+                            amt_arrow = "↑" if amt_diff >= 0 else "↓"
 
-        user_state.pop(user_id, None)
+                            lines.append(
+                                f"{r['商品名稱']} ({r['單位']})\n"
+                                f"銷量：{qty_arrow}{abs(qty_diff):.0f} ({qty_rate:.1f}%)\n"
+                                f"金額：{amt_arrow}{abs(amt_diff):.0f} ({amt_rate:.1f}%)"
+                            )
 
+                    reply_text = "\n\n".join(lines)
+
+            # ==================================
+            # B MODE：Q1 vs Q2
+            # ==================================
+            else:
+
+                df = compare_q1_q2(category)
+
+                if df.empty:
+                    reply_text = f"{category} 沒有資料"
+
+                else:
+
+                    lines = [f"📊 {category}｜Q1 vs Q2"]
+
+                    for _, r in df.iterrows():
+
+                        qty_diff = r["數量差異"]
+                        amt_diff = r["金額差異"]
+
+                        qty_rate = r["數量成長率"]
+                        amt_rate = r["金額成長率"]
+
+                        qty_arrow = "↑" if qty_diff >= 0 else "↓"
+                        amt_arrow = "↑" if amt_diff >= 0 else "↓"
+
+                        lines.append(
+                            f"{r['商品名稱']} ({r['單位']})\n"
+                            f"銷量：{qty_arrow}{abs(qty_diff):.0f} ({qty_rate:.1f}%)\n"
+                            f"金額：{amt_arrow}{abs(amt_diff):.0f} ({amt_rate:.1f}%)"
+                        )
+
+                    reply_text = "\n\n".join(lines)
+
+            user_state.pop(user_id, None)
+
+    # ==========================
+    # fallback
+    # ==========================
     # ==========================
     # ❗ 未回覆低星評論（保留）
     # ==========================
@@ -213,22 +221,10 @@ def handle_message(event):
                 )
 
             reply_text = "\n\n────────\n\n".join(lines[:10])
-
-    # ==========================
-    # fallback
-    # ==========================
     else:
-        reply_text = (
-            "請輸入：\n"
-            "1 = Q1 vs 4~6月（依類別）\n"
-            "2 = Q1 vs Q2（依類別）\n"
-            "! = 未回覆評論\n"
-            "讚 = 五星評論"
-        )
+        reply_text = "請輸入：a / b / ! / 讚"
 
-    # ==========================
     # reply
-    # ==========================
     with ApiClient(configuration) as api_client:
         MessagingApi(api_client).reply_message(
             ReplyMessageRequest(
