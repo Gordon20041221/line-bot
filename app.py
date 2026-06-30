@@ -111,7 +111,7 @@ def handle_message(event):
                         amt_arrow = "↑" if amt_diff >= 0 else "↓"
 
                         lines.append(
-                            f"{name} ({unit})\n"
+                            f"{r['商品名稱']} ({r['單位']})\n"
                             f"銷量：{qty_arrow}{abs(qty_diff):.0f} ({qty_rate:.1f}%)\n"
                             f"金額：{amt_arrow}{abs(amt_diff):.0f} ({amt_rate:.1f}%)"
                         )
