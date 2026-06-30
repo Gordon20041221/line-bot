@@ -1,5 +1,3 @@
-from calendar import month
-
 import pandas as pd
 
 # ==========================
@@ -12,18 +10,20 @@ def read_month(month):
     df["實銷金額"] = pd.to_numeric(df["實銷金額"], errors="coerce").fillna(0)
 
     return df
+
+
 # ==========================
-# group by
+# 商品彙總
 # ==========================
 def summary(df):
     return df.groupby(
-        ["類別", "商品編號", "商品名稱"],
+        ["類別", "商品編號", "商品名稱", "單位"],
         as_index=False
     )[["銷售數量", "實銷金額"]].sum()
 
 
 # ==========================
-# Q1 平均
+# Q1 平均 (1~3月)
 # ==========================
 def build_q1(category=None):
 
@@ -33,26 +33,7 @@ def build_q1(category=None):
         read_month(3)
     ], ignore_index=True)
 
-    df = summary(df)
-
-    df["銷售數量"] /= 3
-    df["實銷金額"] /= 3
-
-    return df
-
-
-# ==========================
-# Q2 平均
-# ==========================
-def build_q2(category=None):
-
-    df = pd.concat([
-        read_month(4),
-        read_month(5),
-        read_month(6)
-    ], ignore_index=True)
-
-    if category:
+    if category is not None:
         df = df[df["類別"] == category]
 
     df = summary(df)
@@ -64,7 +45,29 @@ def build_q2(category=None):
 
 
 # ==========================
-# B mode：Q1 vs Q2（平均）
+# Q2 平均 (4~6月)
+# ==========================
+def build_q2(category=None):
+
+    df = pd.concat([
+        read_month(4),
+        read_month(5),
+        read_month(6)
+    ], ignore_index=True)
+
+    if category is not None:
+        df = df[df["類別"] == category]
+
+    df = summary(df)
+
+    df["銷售數量"] /= 3
+    df["實銷金額"] /= 3
+
+    return df
+
+
+# ==========================
+# B mode：Q1 vs Q2
 # ==========================
 def compare_q1_q2(category=None):
 
@@ -74,7 +77,7 @@ def compare_q1_q2(category=None):
     df = pd.merge(
         q1,
         q2,
-        on=["商品編號", "商品名稱"],
+        on=["類別", "商品編號", "商品名稱", "單位"],
         how="outer",
         suffixes=("_Q1", "_Q2")
     ).fillna(0)
@@ -96,29 +99,29 @@ def compare_q1_q2(category=None):
 
 
 # ==========================
-# A mode：Q1 vs 單月（逐月）
+# A mode：Q1 vs 單月
 # ==========================
 def compare_q1_month(month, category=None):
 
     q1 = build_q1(category)
-    m = summary(read_month(month))
+    m = read_month(month)
 
     if category:
         m = m[m["類別"] == category]
 
+    m = summary(m)
+
     df = pd.merge(
         q1,
         m,
-        on=["商品編號", "商品名稱"],
+        on=["類別", "商品編號", "商品名稱", "單位"],
         how="outer",
         suffixes=("_Q1", f"_{month}月")
     ).fillna(0)
 
-    # 差異
     df["數量差異"] = df[f"銷售數量_{month}月"] - df["銷售數量_Q1"]
     df["金額差異"] = df[f"實銷金額_{month}月"] - df["實銷金額_Q1"]
 
-    # 成長率
     df["數量成長率"] = (
         df["數量差異"] /
         df["銷售數量_Q1"].replace(0, pd.NA) * 100
@@ -128,9 +131,28 @@ def compare_q1_month(month, category=None):
         df["金額差異"] /
         df["實銷金額_Q1"].replace(0, pd.NA) * 100
     ).fillna(0).round(2)
-    # 標記月份
+
     df["月份"] = f"{month}月"
+
     return df
+
+
+# ==========================
+# 測試
+# ==========================
 if __name__ == "__main__":
+
+    category = "茶飲"
+
+    print("===== Q1 =====")
+    print(build_q1(category))
+
+    print("\n===== Q2 =====")
+    print(build_q2(category))
+
+    print("\n===== Q1 vs Q2 =====")
+    print(compare_q1_q2(category))
+
     for m in [4, 5, 6]:
-        print(compare_q1_month(m, category=None))
+        print(f"\n===== {m}月 =====")
+        print(compare_q1_month(m, category))

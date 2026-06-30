@@ -49,7 +49,6 @@ def handle_message(event):
 
     raw = event.message.text.strip()
 
-    # ⚠️ 正規化（一定要這樣寫）
     cmd = raw.strip().lower()
     cmd = cmd.replace("！", "!").replace("１", "1").replace("２", "2")
 
@@ -74,18 +73,18 @@ def handle_message(event):
     # ==========================
     elif state in ["A_WAIT", "B_WAIT"]:
 
-        # ⚠️ 強制轉 string + strip
         cmd = str(cmd).strip()
 
         if cmd not in category_map:
             reply_text = "錯誤：請輸入 1~27"
+
         else:
 
             category = category_map[cmd]
 
-            # ======================
-            # A mode
-            # ======================
+            # ==================================
+            # A MODE：Q1 vs 4、5、6月
+            # ==================================
             if state == "A_WAIT":
 
                 lines = [f"📊 {category}｜Q1 vs 各月份"]
@@ -96,9 +95,11 @@ def handle_message(event):
 
                     lines.append(f"\n====== {m} 月 ======")
 
-                    for _, r in df.iterrows():
+                    if df.empty:
+                        lines.append("沒有資料")
+                        continue
 
-                        name = r["商品名稱"]
+                    for _, r in df.iterrows():
 
                         qty_diff = r["數量差異"]
                         amt_diff = r["金額差異"]
@@ -110,43 +111,45 @@ def handle_message(event):
                         amt_arrow = "↑" if amt_diff >= 0 else "↓"
 
                         lines.append(
-                            f"{name}\n"
+                            f"{name} ({unit})\n"
                             f"銷量：{qty_arrow}{abs(qty_diff):.0f} ({qty_rate:.1f}%)\n"
                             f"金額：{amt_arrow}{abs(amt_diff):.0f} ({amt_rate:.1f}%)"
                         )
 
                 reply_text = "\n\n".join(lines)
 
-            # ======================
-            # B mode
-            # ======================
+            # ==================================
+            # B MODE：Q1 vs Q2
+            # ==================================
             else:
 
-                df = compare_q1_q2()
+                df = compare_q1_q2(category)
 
-                if "類別" in df.columns:
-                    df = df[df["類別"] == category]
+                if df.empty:
+                    reply_text = f"{category} 沒有資料"
 
-                lines = [f"📊 {category}｜Q1 vs Q2\n"]
+                else:
 
-                for _, r in df.iterrows():
+                    lines = [f"📊 {category}｜Q1 vs Q2"]
 
-                    qty_diff = r["數量差異"]
-                    amt_diff = r["金額差異"]
+                    for _, r in df.iterrows():
 
-                    qty_rate = r["數量成長率"]
-                    amt_rate = r["金額成長率"]
+                        qty_diff = r["數量差異"]
+                        amt_diff = r["金額差異"]
 
-                    qty_arrow = "↑" if qty_diff >= 0 else "↓"
-                    amt_arrow = "↑" if amt_diff >= 0 else "↓"
+                        qty_rate = r["數量成長率"]
+                        amt_rate = r["金額成長率"]
 
-                    lines.append(
-                        f"{r['商品名稱']}\n"
-                        f"銷量：{qty_arrow}{abs(qty_diff):.0f} ({qty_rate:.1f}%)\n"
-                        f"金額：{amt_arrow}{abs(amt_diff):.0f} ({amt_rate:.1f}%)"
-                    )
+                        qty_arrow = "↑" if qty_diff >= 0 else "↓"
+                        amt_arrow = "↑" if amt_diff >= 0 else "↓"
 
-                reply_text = "\n".join(lines)
+                        lines.append(
+                            f"{r['商品名稱']} ({r['單位']})\n"
+                            f"銷量：{qty_arrow}{abs(qty_diff):.0f} ({qty_rate:.1f}%)\n"
+                            f"金額：{amt_arrow}{abs(amt_diff):.0f} ({amt_rate:.1f}%)"
+                        )
+
+                    reply_text = "\n\n".join(lines)
 
             user_state.pop(user_id, None)
 
