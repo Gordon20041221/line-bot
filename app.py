@@ -88,37 +88,34 @@ def handle_message(event):
             # ======================
             if state == "A_WAIT":
 
-                all_df = []
+                lines = [f"📊 {category}｜Q1 vs 各月份"]
 
                 for m in [4, 5, 6]:
 
                     df = compare_q1_month(m, category)
-                    all_df.append(df)
 
-                df = pd.concat(all_df)
+                    lines.append(f"\n====== {m} 月 ======")
 
-                # 🔥 每商品 + 平均
-                df = df.groupby(["商品名稱"], as_index=False).mean(numeric_only=True)
+                    for _, r in df.iterrows():
 
-                lines = [f"📊 {category}｜Q1 vs 4~6月\n"]
+                        name = r["商品名稱"]
 
-                for _, r in df.iterrows():
+                        qty_diff = r["數量差異"]
+                        amt_diff = r["金額差異"]
 
-                    name = r["商品名稱"]
+                        qty_rate = r["數量成長率"]
+                        amt_rate = r["金額成長率"]
 
-                    qty_diff = r["數量差異"]
-                    amt_diff = r["金額差異"]
+                        qty_arrow = "↑" if qty_diff >= 0 else "↓"
+                        amt_arrow = "↑" if amt_diff >= 0 else "↓"
 
-                    qty_rate = r["數量成長率"]
-                    amt_rate = r["金額成長率"]
+                        lines.append(
+                            f"{name}\n"
+                            f"銷量：{qty_arrow}{abs(qty_diff):.0f} ({qty_rate:.1f}%)\n"
+                            f"金額：{amt_arrow}{abs(amt_diff):.0f} ({amt_rate:.1f}%)"
+                        )
 
-                    lines.append(
-                        f"{name}\n"
-                        f"銷量變化：{qty_diff:+.0f} ({qty_rate:.1f}%)\n"
-                        f"金額變化：{amt_diff:+.0f} ({amt_rate:.1f}%)\n"
-                    )
-
-                reply_text = "\n".join(lines)
+                reply_text = "\n\n".join(lines)
 
             # ======================
             # B mode
@@ -134,24 +131,19 @@ def handle_message(event):
 
                 for _, r in df.iterrows():
 
-                    name = r["商品名稱"]
+                    qty_diff = r["數量差異"]
+                    amt_diff = r["金額差異"]
 
-                    q1_qty = r["銷售數量_Q1"]
-                    q2_qty = r["銷售數量_Q2"]
+                    qty_rate = r["數量成長率"]
+                    amt_rate = r["金額成長率"]
 
-                    q1_amt = r["實銷金額_Q1"]
-                    q2_amt = r["實銷金額_Q2"]
-
-                    qty_diff = q2_qty - q1_qty
-                    amt_diff = q2_amt - q1_amt
-
-                    qty_rate = (qty_diff / q1_qty * 100) if q1_qty else 0
-                    amt_rate = (amt_diff / q1_amt * 100) if q1_amt else 0
+                    qty_arrow = "↑" if qty_diff >= 0 else "↓"
+                    amt_arrow = "↑" if amt_diff >= 0 else "↓"
 
                     lines.append(
-                        f"{name}\n"
-                        f"銷量：Q2 vs Q1 → {'↑' if qty_diff>=0 else '↓'}{abs(qty_diff):.0f} ({qty_rate:.1f}%)\n"
-                        f"金額：Q2 vs Q1 → {'↑' if amt_diff>=0 else '↓'}{abs(amt_diff):.0f} ({amt_rate:.1f}%)\n"
+                        f"{r['商品名稱']}\n"
+                        f"銷量：{qty_arrow}{abs(qty_diff):.0f} ({qty_rate:.1f}%)\n"
+                        f"金額：{amt_arrow}{abs(amt_diff):.0f} ({amt_rate:.1f}%)"
                     )
 
                 reply_text = "\n".join(lines)

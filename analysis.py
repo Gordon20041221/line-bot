@@ -1,3 +1,5 @@
+from calendar import month
+
 import pandas as pd
 
 # ==========================
@@ -10,14 +12,12 @@ def read_month(month):
     df["實銷金額"] = pd.to_numeric(df["實銷金額"], errors="coerce").fillna(0)
 
     return df
-
-
 # ==========================
 # group by
 # ==========================
 def summary(df):
     return df.groupby(
-        ["商品編號", "商品名稱"],
+        ["類別", "商品編號", "商品名稱"],
         as_index=False
     )[["銷售數量", "實銷金額"]].sum()
 
@@ -32,9 +32,6 @@ def build_q1(category=None):
         read_month(2),
         read_month(3)
     ], ignore_index=True)
-
-    if category:
-        df = df[df["類別"] == category]
 
     df = summary(df)
 
@@ -109,15 +106,31 @@ def compare_q1_month(month, category=None):
     if category:
         m = m[m["類別"] == category]
 
-    # ⚠️ 強制補 Q1 / Qm 對齊
     df = pd.merge(
         q1,
         m,
         on=["商品編號", "商品名稱"],
         how="outer",
-        suffixes=("_Q1", f"_{month}")
+        suffixes=("_Q1", f"_{month}月")
     ).fillna(0)
 
-    df["月份"] = month   # ⭐關鍵：標記月份
+    # 差異
+    df["數量差異"] = df[f"銷售數量_{month}月"] - df["銷售數量_Q1"]
+    df["金額差異"] = df[f"實銷金額_{month}月"] - df["實銷金額_Q1"]
 
+    # 成長率
+    df["數量成長率"] = (
+        df["數量差異"] /
+        df["銷售數量_Q1"].replace(0, pd.NA) * 100
+    ).fillna(0).round(2)
+
+    df["金額成長率"] = (
+        df["金額差異"] /
+        df["實銷金額_Q1"].replace(0, pd.NA) * 100
+    ).fillna(0).round(2)
+    # 標記月份
+    df["月份"] = f"{month}月"
     return df
+if __name__ == "__main__":
+    for m in [4, 5, 6]:
+        print(compare_q1_month(m, category=None))
